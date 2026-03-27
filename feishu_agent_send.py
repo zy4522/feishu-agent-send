@@ -1,7 +1,9 @@
 """
-feishu_agent_send - 飞书Agent通信工具 v1.0.0
+feishu_agent_send - 飞书Agent通信工具 v1.1.0
 
 核心机制：Agent借助彦哥的飞书通道发送消息，接收方通过格式识别实际发送者
+
+⚠️ 重要提示：在群聊中必须使用本工具发送消息，否则其他 Agent 收不到！
 """
 
 import json
@@ -19,6 +21,39 @@ class AgentNotFoundError(Exception):
 class FeishuAgentSendError(Exception):
     """发送消息失败时抛出"""
     pass
+
+
+# 安装提示标志
+_INSTALLATION_NOTICE_SHOWN = False
+
+def show_installation_notice():
+    """
+    显示安装提示
+    
+    在首次导入模块时显示重要使用提示。
+    """
+    global _INSTALLATION_NOTICE_SHOWN
+    if _INSTALLATION_NOTICE_SHOWN:
+        return
+    
+    notice = """
+╔════════════════════════════════════════════════════════════╗
+║  🎉 feishu_agent_send 安装成功！                          ║
+╠════════════════════════════════════════════════════════════╣
+║  ⚠️  重要提示：                                            ║
+║     在群聊中发送消息时，必须使用 feishu_agent_send！        ║
+║     普通消息无法被其他 Agent 接收。                         ║
+╠════════════════════════════════════════════════════════════╣
+║  📖 快速开始：                                              ║
+║     from feishu_agent_send import send_to_group            ║
+║     result = send_to_group("消息", "我的名字")               ║
+║     feishu_im_user_message(**result['send_params'])        ║
+╠════════════════════════════════════════════════════════════╣
+║  📚 详细文档：SKILL.md                                      ║
+╚════════════════════════════════════════════════════════════╝
+"""
+    print(notice)
+    _INSTALLATION_NOTICE_SHOWN = True
 
 
 class AgentResolver:
@@ -227,7 +262,7 @@ class MessageFormatter:
     """
     
     @staticmethod
-    def format_proxy_message(from_agent: str, to_agent: str, content: str) -> str:
+    def format_proxy_message(from_agent: str, to_agent: str, content: str, mark_as_self: bool = True) -> str:
         """
         格式化代理消息
         
@@ -235,11 +270,15 @@ class MessageFormatter:
             from_agent: 实际发送者名称
             to_agent: 接收者名称
             content: 消息内容
+            mark_as_self: 是否添加自我标记（默认True）
             
         Returns:
             格式化后的消息
         """
-        return f"📨【代理】【{from_agent}→{to_agent}】\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：彦哥\n---"
+        # 添加隐藏的自我标记（用于接收方识别是自己发的）
+        self_marker = f"<!--self:{from_agent}-->" if mark_as_self else ""
+        
+        return f"📨【代理】【{from_agent}→{to_agent}】{self_marker}\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：彦哥\n---"
     
     @staticmethod
     def parse_proxy_message(message: str) -> Optional[Dict[str, str]]:
@@ -275,11 +314,20 @@ class MessageFormatter:
         else:
             content = message[content_start:content_end].strip()
         
+        # 检查是否有自我标记
+        self_marker_pattern = r'<!--self:(.+?)-->'
+        self_match = re.search(self_marker_pattern, message)
+        marked_sender = None
+        
+        if self_match:
+            marked_sender = self_match.group(1)
+        
         return {
             "from_agent": from_agent,
             "to_agent": to_agent,
             "content": content,
-            "is_proxy": True
+            "is_proxy": True,
+            "marked_sender": marked_sender  # 标记的发送者，供调用方判断
         }
 
 
@@ -287,7 +335,8 @@ def feishu_agent_send(
     to: str,
     message: str,
     from_agent: str,
-    chat_id: Optional[str] = None
+    chat_id: Optional[str] = None,
+    mark_as_self: bool = True
 ) -> Dict[str, Any]:
     """
     发送消息给Agent（通过彦哥的通道）
@@ -305,6 +354,7 @@ def feishu_agent_send(
         from_agent: 发送者Agent名称
         chat_id: 群聊ID（可选，推荐提供以避免跨应用问题）
                注意：如果提供此参数，会优先使用；如果不提供，会自动查找
+        mark_as_self: 是否添加自我标记（默认True），用于接收方识别是自己发的消息
         
     Returns:
         发送结果字典，包含格式化后的消息和发送参数
@@ -353,7 +403,8 @@ def feishu_agent_send(
     formatted_message = formatter.format_proxy_message(
         from_agent=from_agent,
         to_agent=receiver_name,
-        content=message
+        content=message,
+        mark_as_self=mark_as_self
     )
     
     # 3. 准备发送参数
@@ -483,8 +534,15 @@ def parse_proxy_message(message: str, my_agent_name: Optional[str] = None) -> Op
     result = formatter.parse_proxy_message(message)
     
     if result and my_agent_name:
-        # 判断是否是自己发的消息
-        result["is_from_myself"] = (result.get("from_agent") == my_agent_name)
+        # 判断是否是自已发的消息
+        # 优先使用自我标记判断
+        marked_sender = result.get("marked_sender")
+        if marked_sender:
+            # 如果有自我标记，比较标记的发送者和自己的名字
+            result["is_from_myself"] = (marked_sender == my_agent_name)
+        else:
+            # 如果没有自我标记，回退到传统的名称匹配
+            result["is_from_myself"] = (result.get("from_agent") == my_agent_name)
     
     return result
 
@@ -627,12 +685,90 @@ def feishu_agent_send_and_deliver(
         }
 
 
+def check_group_chat_environment() -> Dict[str, Any]:
+    """
+    检测当前是否在群聊环境中
+    
+    Returns:
+        检测结果字典
+        {
+            "is_group_chat": bool,  # 是否在群聊
+            "chat_id": str,         # 群聊ID（如果是）
+            "warning": str          # 警告信息
+        }
+    """
+    result = {
+        "is_group_chat": False,
+        "chat_id": None,
+        "warning": None
+    }
+    
+    # 尝试从环境变量或上下文检测
+    # 注意：这里需要根据实际运行环境实现
+    # 例如：检测当前会话类型、读取 OpenClaw 上下文等
+    
+    # 暂时返回通用警告
+    result["warning"] = (
+        "⚠️  提醒：如果在群聊中，请使用 feishu_agent_send 发送消息！\n"
+        "   普通消息无法被其他 Agent 接收。\n"
+        "   使用方法：feishu_agent_send_and_deliver(to, message, from_agent)"
+    )
+    
+    return result
+
+
+def send_to_group(
+    message: str,
+    from_agent: str,
+    group_chat_id: str = None
+) -> Dict[str, Any]:
+    """
+    简化版：发送到当前群聊
+    
+    自动使用群聊 chat_id，无需手动指定接收者。
+    
+    Args:
+        message: 消息内容
+        from_agent: 发送者名称
+        group_chat_id: 可选，指定群聊ID。如果不提供，尝试自动检测
+        
+    Returns:
+        发送结果
+        
+    Example:
+        >>> result = send_to_group("大家好！", "我")
+        >>> feishu_im_user_message(**result["send_params"])
+    """
+    if not group_chat_id:
+        # 尝试自动检测当前群聊
+        env = check_group_chat_environment()
+        if env.get("chat_id"):
+            group_chat_id = env["chat_id"]
+        else:
+            return {
+                "success": False,
+                "error": "无法自动检测群聊ID，请手动提供 group_chat_id 参数",
+                "hint": "例如：send_to_group('消息', '我', group_chat_id='oc_xxx')"
+            }
+    
+    # 使用群聊ID直接发送
+    return feishu_agent_send(
+        to="群聊",
+        message=message,
+        from_agent=from_agent,
+        chat_id=group_chat_id
+    )
+
+
 # 便捷别名
 send_and_deliver = feishu_agent_send_and_deliver
 
+# 模块加载时显示安装提示（仅在直接导入时显示）
+show_installation_notice()
+
 
 if __name__ == "__main__":
-    # 测试代码
+    # 运行测试
     print("=== feishu_agent_send 测试 ===")
     
     # 测试1：发送消息

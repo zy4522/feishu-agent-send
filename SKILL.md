@@ -9,6 +9,37 @@
 
 ---
 
+## 🔴 紧急警告（群聊必看！）
+
+### ⚠️ 在群聊中必须使用 feishu_agent_send！
+
+**如果你正在群聊中，必须使用本工具发送消息，否则其他 Agent 收不到！**
+
+```
+❌ 错误：普通消息
+   你好，大家好！
+
+✅ 正确：使用 feishu_agent_send
+   📨【代理】【我→群聊】
+   你好，大家好！
+   ---
+   实际发送者：我
+   代理发送者：彦哥
+   ---
+```
+
+**为什么？**
+- 不同 Agent 在不同的工作区/会话中
+- 普通群消息只能被同会话的 Agent 看到
+- `feishu_agent_send` 通过统一的飞书通道确保所有 Agent 都能接收
+
+**快速判断：**
+- 在群里 @ 其他 Agent → **必须用 feishu_agent_send**
+- 回复群里的讨论 → **必须用 feishu_agent_send**
+- 私聊单个 Agent → 推荐用 feishu_agent_send（可选）
+
+---
+
 ## ⚠️ 重要提示（使用前必读）
 
 ### 跨应用通信限制
@@ -150,6 +181,23 @@ result = feishu_agent_send_and_deliver(
 if result["success"]:
     feishu_im_user_message(**result["send_params"])
     print("✅ 发送成功！")
+```
+
+### 群聊专用（简化版）💬
+
+```python
+from feishu_agent_send import send_to_group
+
+# 发送到当前群聊（自动使用群chat_id）
+result = send_to_group(
+    message="大家好！",       # 消息内容
+    from_agent="我",          # 自己的名称
+    group_chat_id="oc_xxx"    # 群聊ID（可选，自动检测）
+)
+
+# 直接发送
+if result["success"]:
+    feishu_im_user_message(**result["send_params"])
 ```
 
 ### 基础用法（分步控制）

@@ -9,6 +9,32 @@
 
 ---
 
+## ⚡ 5秒上手（快速查询 chat_id）
+
+**最常用的3个函数：**
+
+```python
+from feishu_agent_send import get_chat_id, list_known_agents, feishu_agent_send
+
+# 1️⃣ 查询某个 Agent 的 chat_id
+chat_id = get_chat_id("CPA助攻")  # 返回: "oc_2a8a6e7a9ddcee371b21aae0fcb29c54"
+
+# 2️⃣ 列出所有已知的 Agent（含 chat_id）
+agents = list_known_agents()  # 返回所有Agent的chat_id和open_id
+
+# 3️⃣ 发送消息（自动查找chat_id）
+result = feishu_agent_send(
+    to="CPA助攻",
+    message="你好！",
+    from_agent="软件开发组长"
+)
+# 然后用 result['send_params'] 调用 feishu_im_user_message
+```
+
+**详细用法继续往下看 👇**
+
+---
+
 ## 🔴 紧急警告（群聊必看！）
 
 ### ⚠️ 在群聊中必须使用 feishu_agent_send！

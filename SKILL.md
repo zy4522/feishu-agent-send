@@ -1,15 +1,61 @@
 # feishu_agent_send - 飞书Agent通信工具
 
-**版本：** 1.0.0  
+**版本：** 1.2.0  
 **定位：** 飞书环境下Agent通信的标准工具  
-**核心机制：** Agent借助彦哥的飞书通道发送消息，接收方通过格式识别实际发送者
-
-**📍 统一位置（以此为准）：** `/root/.openclaw/workspace/skills/feishu_agent_send/`  
-**（旧位置 `/root/.openclaw/skills/feishu_agent_send/` 已改为软链接指向此处）**
+**核心机制：** Agent借助用户飞书通道发送消息，接收方通过格式识别实际发送者
 
 ---
 
-## ⚡ 5秒上手（快速查询 chat_id）
+## 📦 安装
+
+### 方式1：直接克隆
+```bash
+git clone https://github.com/zy4522/feishu-agent-send.git
+cd feishu-agent-send
+```
+
+### 方式2：作为 OpenClaw Skill 安装
+```bash
+# 复制到工作区 skills 目录
+cp -r feishu-agent-send /path/to/your/workspace/skills/
+```
+
+---
+
+## 🔧 配置
+
+### 1. 初始化配置
+
+首次使用前，需要配置你的 Agent：
+
+```python
+from feishu_agent_send import setup_agent
+
+# 添加一个 Agent
+setup_agent(
+    name="我的助手",
+    chat_id="oc_xxxxxxxxxxxxxxxx",  # 群聊ID
+    open_id="ou_xxxxxxxxxxxxxxxx"   # 用户open_id（可选）
+)
+```
+
+### 2. 获取 chat_id
+
+**方法1：通过飞书群聊获取**
+- 在飞书群聊中，使用 `feishu_chat` 工具搜索群名称
+- 或者查看群设置中的群ID
+
+**方法2：通过历史消息获取**
+```python
+from feishu_agent_send import get_chat_id
+
+# 如果 Agent 曾经在群里发过消息
+chat_id = get_chat_id("Agent名称")
+```
+
+---
+
+## ⚡ 5秒上手
 
 **最常用的3个函数：**
 

@@ -1,7 +1,7 @@
 """
-feishu_agent_send - 飞书Agent通信工具 v1.1.0
+feishu_agent_send - 飞书Agent通信工具 v1.2.0
 
-核心机制：Agent借助彦哥的飞书通道发送消息，接收方通过格式识别实际发送者
+核心机制：Agent借助用户飞书通道发送消息，接收方通过格式识别实际发送者
 
 ⚠️ 重要提示：在群聊中必须使用本工具发送消息，否则其他 Agent 收不到！
 """
@@ -278,7 +278,7 @@ class MessageFormatter:
         # 添加隐藏的自我标记（用于接收方识别是自己发的）
         self_marker = f"<!--self:{from_agent}-->" if mark_as_self else ""
         
-        return f"📨【代理】【{from_agent}→{to_agent}】{self_marker}\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：彦哥\n---"
+        return f"📨【代理】【{from_agent}→{to_agent}】{self_marker}\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：用户\n---"
     
     @staticmethod
     def parse_proxy_message(message: str) -> Optional[Dict[str, str]]:
@@ -339,7 +339,7 @@ def feishu_agent_send(
     mark_as_self: bool = True
 ) -> Dict[str, Any]:
     """
-    发送消息给Agent（通过彦哥的通道）
+    发送消息给Agent（通过用户飞书通道）
     
     这是主要的用户接口，极简设计。
     
@@ -597,7 +597,7 @@ def quick_send(to: str, message: str, from_agent: str) -> str:
         
         ---
         实际发送者：大总管
-        代理发送者：彦哥
+        代理发送者：用户
         ---
     """
     result = feishu_agent_send(to=to, message=message, from_agent=from_agent)

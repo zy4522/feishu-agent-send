@@ -175,6 +175,12 @@ feishu_im_user_message(**result["send_params"])
 
 MIT License
 
+## 反馈与支持
+
+- 🐛 **Bug 报告**: [提交 Issue](https://github.com/zy4522/feishu-agent-send/issues)
+- 💡 **功能建议**: [提交 Issue](https://github.com/zy4522/feishu-agent-send/issues)
+- 📧 **联系作者**: 通过 GitHub Issues 留言
+
 ## 贡献
 
 欢迎提交 Issue 和 PR！

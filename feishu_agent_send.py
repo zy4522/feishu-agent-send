@@ -1,7 +1,11 @@
 """
-feishu_agent_send - 飞书Agent通信工具 v1.2.0
+feishu_agent_send - 飞书Agent通信工具 v1.3.0
 
 核心机制：Agent借助用户飞书通道发送消息，接收方通过格式识别实际发送者
+
+v1.3.0 更新：
+- 新增会话类型标记（【私信】/【群】），解决接收方无法判断回复方式的问题
+- parse_proxy_message 返回 reply_method 建议
 
 ⚠️ 重要提示：在群聊中必须使用本工具发送消息，否则其他 Agent 收不到！
 """
@@ -259,10 +263,20 @@ class MessageFormatter:
     消息格式化器
     
     格式化代理消息，包含【代理】标记和实际发送者信息。
+    支持区分群聊和私信场景。
     """
     
+    CHAT_TYPE_GROUP = "群"
+    CHAT_TYPE_PRIVATE = "私信"
+    
     @staticmethod
-    def format_proxy_message(from_agent: str, to_agent: str, content: str, mark_as_self: bool = True) -> str:
+    def format_proxy_message(
+        from_agent: str, 
+        to_agent: str, 
+        content: str, 
+        mark_as_self: bool = True,
+        chat_type: str = "p2p"  # "p2p" 或 "group"
+    ) -> str:
         """
         格式化代理消息
         
@@ -271,6 +285,7 @@ class MessageFormatter:
             to_agent: 接收者名称
             content: 消息内容
             mark_as_self: 是否添加自我标记（默认True）
+            chat_type: 会话类型，"p2p"=私信, "group"=群聊
             
         Returns:
             格式化后的消息
@@ -278,7 +293,13 @@ class MessageFormatter:
         # 添加隐藏的自我标记（用于接收方识别是自己发的）
         self_marker = f"<!--self:{from_agent}-->" if mark_as_self else ""
         
-        return f"📨【代理】【{from_agent}→{to_agent}】{self_marker}\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：用户\n---"
+        # 根据会话类型添加标记
+        if chat_type == "group":
+            type_marker = f"【{MessageFormatter.CHAT_TYPE_GROUP}】"
+        else:
+            type_marker = f"【{MessageFormatter.CHAT_TYPE_PRIVATE}】"
+        
+        return f"📨{type_marker}【代理】【{from_agent}→{to_agent}】{self_marker}\n\n{content}\n\n---\n实际发送者：{from_agent}\n代理发送者：用户\n---"
     
     @staticmethod
     def parse_proxy_message(message: str) -> Optional[Dict[str, str]]:
@@ -290,14 +311,43 @@ class MessageFormatter:
             
         Returns:
             解析结果字典，如果不是代理消息返回None
+            包含字段：
+            - from_agent: 发送者
+            - to_agent: 接收者
+            - content: 内容
+            - chat_type: 会话类型 ("group" 或 "p2p")
+            - is_proxy: 是否是代理消息
+            - marked_sender: 自我标记的发送者
+            - reply_method: 建议的回复方式 ("message" 或 "feishu_im_user_message")
         """
-        # 检查是否是代理消息
-        if not message.startswith("📨【代理】"):
+        # 检查是否是代理消息（支持新旧格式）
+        if not message.startswith("📨"):
             return None
         
+        # 解析会话类型标记
+        chat_type = "p2p"  # 默认私信
+        
+        if f"【{MessageFormatter.CHAT_TYPE_GROUP}】" in message[:10]:
+            chat_type = "group"
+        elif f"【{MessageFormatter.CHAT_TYPE_PRIVATE}】" in message[:10]:
+            chat_type = "p2p"
+        else:
+            # 旧格式没有标记，尝试推断
+            # 如果包含 "群聊" 字样或特定上下文，可能是群消息
+            pass
+        
+        # 注意：不管是私信还是群聊，都用 feishu_im_user_message 发送
+        # 区别只是 receive_id 是私聊 chat_id 还是群 chat_id
+        reply_method = "feishu_im_user_message"
+        
         # 解析【from→to】
-        pattern = r'📨【代理】【(.+?)→(.+?)】'
+        pattern = r'📨(?:【.*?】)*【代理】【(.+?)→(.+?)】'
         match = re.search(pattern, message)
+        
+        if not match:
+            # 尝试旧格式
+            pattern_old = r'📨【代理】【(.+?)→(.+?)】'
+            match = re.search(pattern_old, message)
         
         if not match:
             return None
@@ -305,8 +355,14 @@ class MessageFormatter:
         from_agent = match.group(1)
         to_agent = match.group(2)
         
-        # 提取消息内容（在】之后，---之前）
-        content_start = message.find('】') + 1
+        # 提取消息内容（在最后一个】之后，---之前）
+        # 找到【代理】【xxx→xxx】之后的第一个】
+        proxy_end = message.find('】', message.find('【代理】'))
+        if proxy_end != -1:
+            content_start = proxy_end + 1
+        else:
+            content_start = message.find('】') + 1
+            
         content_end = message.find('---')
         
         if content_end == -1:
@@ -326,8 +382,10 @@ class MessageFormatter:
             "from_agent": from_agent,
             "to_agent": to_agent,
             "content": content,
+            "chat_type": chat_type,
             "is_proxy": True,
-            "marked_sender": marked_sender  # 标记的发送者，供调用方判断
+            "marked_sender": marked_sender,
+            "reply_method": reply_method  # 建议的回复方式
         }
 
 
@@ -336,7 +394,8 @@ def feishu_agent_send(
     message: str,
     from_agent: str,
     chat_id: Optional[str] = None,
-    mark_as_self: bool = True
+    mark_as_self: bool = True,
+    chat_type: str = "p2p"  # 新增：会话类型 "p2p" 或 "group"
 ) -> Dict[str, Any]:
     """
     发送消息给Agent（通过用户飞书通道）
@@ -355,24 +414,29 @@ def feishu_agent_send(
         chat_id: 群聊ID（可选，推荐提供以避免跨应用问题）
                注意：如果提供此参数，会优先使用；如果不提供，会自动查找
         mark_as_self: 是否添加自我标记（默认True），用于接收方识别是自己发的消息
+        chat_type: 会话类型（默认"p2p"）
+               - "p2p": 私信，消息标记为【私信】，接收方应使用 feishu_im_user_message 回复
+               - "group": 群聊，消息标记为【群】，接收方应使用 message 工具回复到群里
         
     Returns:
         发送结果字典，包含格式化后的消息和发送参数
         
     Example:
-        # 方式1：通过群聊发送（推荐）
+        # 方式1：私信发送（标记为【私信】）
         >>> result = feishu_agent_send(
         ...     to="CPA助攻",
         ...     message="请汇报进度",
         ...     from_agent="软件开发组长",
-        ...     chat_id="oc_9d8e4a53e3f558d3457dad06f1e0a275"  # 群聊ID
+        ...     chat_type="p2p"
         ... )
         
-        # 方式2：直接发送（可能遇到 cross app 问题）
+        # 方式2：群聊发送（标记为【群】）
         >>> result = feishu_agent_send(
         ...     to="CPA助攻",
         ...     message="请汇报进度",
-        ...     from_agent="软件开发组长"
+        ...     from_agent="软件开发组长",
+        ...     chat_id="oc_9d8e4a53e3f558d3457dad06f1e0a275",
+        ...     chat_type="group"
         ... )
     """
     # 1. 准备变量
@@ -404,7 +468,8 @@ def feishu_agent_send(
         from_agent=from_agent,
         to_agent=receiver_name,
         content=message,
-        mark_as_self=mark_as_self
+        mark_as_self=mark_as_self,
+        chat_type=chat_type  # 传递会话类型
     )
     
     # 3. 准备发送参数
@@ -523,10 +588,21 @@ def parse_proxy_message(message: str, my_agent_name: Optional[str] = None) -> Op
         
     Returns:
         解析结果字典，如果不是代理消息返回None
+        包含字段：
+        - from_agent: 发送者
+        - to_agent: 接收者  
+        - content: 内容
+        - chat_type: 会话类型 ("group" 或 "p2p")
+        - is_proxy: 是否是代理消息
+        - is_from_myself: 是否是自己发的（需要提供 my_agent_name）
+        - marked_sender: 自我标记的发送者
+        - reply_method: 建议的回复方式 ("message" 或 "feishu_im_user_message")
         
     Example:
-        >>> result = parse_proxy_message("📨【代理】【CPA助攻→软件开发组长】...", "软件开发组长")
+        >>> result = parse_proxy_message("📨【私信】【代理】【CPA助攻→软件开发组长】...", "软件开发组长")
         >>> print(result["from_agent"])  # "CPA助攻"
+        >>> print(result["chat_type"])   # "p2p"
+        >>> print(result["reply_method"])  # "feishu_im_user_message"
         >>> print(result["is_from_myself"])  # False
         >>> print(result["content"])     # 消息内容
     """

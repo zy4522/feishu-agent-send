@@ -1,11 +1,17 @@
 """
-feishu_agent_send - 飞书Agent通信工具 v1.3.0
+feishu_agent_send - 飞书Agent通信工具 v1.3.1
 
 核心机制：Agent借助用户飞书通道发送消息，接收方通过格式识别实际发送者
 
+v1.3.1 更新：
+- 修正文档错误，明确所有通信都用 feishu_agent_send
+- 新增发送前检查清单、常见发送错误章节
+- 新增 debug/dry_run 模式
+- 新增 reply_chat_id 返回值
+- 新增 auto_reply 辅助函数
+
 v1.3.0 更新：
 - 新增会话类型标记（【私信】/【群】），解决接收方无法判断回复方式的问题
-- parse_proxy_message 返回 reply_method 建议
 
 ⚠️ 重要提示：在群聊中必须使用本工具发送消息，否则其他 Agent 收不到！
 """
@@ -318,7 +324,7 @@ class MessageFormatter:
             - chat_type: 会话类型 ("group" 或 "p2p")
             - is_proxy: 是否是代理消息
             - marked_sender: 自我标记的发送者
-            - reply_method: 建议的回复方式 ("message" 或 "feishu_im_user_message")
+            - reply_chat_id: 建议回复到这个 chat_id
         """
         # 检查是否是代理消息（支持新旧格式）
         if not message.startswith("📨"):
@@ -336,9 +342,9 @@ class MessageFormatter:
             # 如果包含 "群聊" 字样或特定上下文，可能是群消息
             pass
         
-        # 注意：不管是私信还是群聊，都用 feishu_im_user_message 发送
-        # 区别只是 receive_id 是私聊 chat_id 还是群 chat_id
-        reply_method = "feishu_im_user_message"
+        # 注意：不管是私信还是群聊，都用 feishu_agent_send 发送
+        # 区别只是 chat_type 参数不同
+        reply_chat_id = None  # 可以从消息中推断或从已知Agent列表查找
         
         # 解析【from→to】
         pattern = r'📨(?:【.*?】)*【代理】【(.+?)→(.+?)】'
@@ -385,7 +391,7 @@ class MessageFormatter:
             "chat_type": chat_type,
             "is_proxy": True,
             "marked_sender": marked_sender,
-            "reply_method": reply_method  # 建议的回复方式
+            "reply_chat_id": reply_chat_id  # 建议回复到这个 chat_id
         }
 
 
@@ -596,13 +602,12 @@ def parse_proxy_message(message: str, my_agent_name: Optional[str] = None) -> Op
         - is_proxy: 是否是代理消息
         - is_from_myself: 是否是自己发的（需要提供 my_agent_name）
         - marked_sender: 自我标记的发送者
-        - reply_method: 建议的回复方式 ("message" 或 "feishu_im_user_message")
+        - reply_chat_id: 建议回复到这个 chat_id
         
     Example:
         >>> result = parse_proxy_message("📨【私信】【代理】【CPA助攻→软件开发组长】...", "软件开发组长")
         >>> print(result["from_agent"])  # "CPA助攻"
         >>> print(result["chat_type"])   # "p2p"
-        >>> print(result["reply_method"])  # "feishu_im_user_message"
         >>> print(result["is_from_myself"])  # False
         >>> print(result["content"])     # 消息内容
     """

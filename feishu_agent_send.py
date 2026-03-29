@@ -848,6 +848,61 @@ send_and_deliver = feishu_agent_send_and_deliver
 show_installation_notice()
 
 
+def auto_reply(received_message: str, reply_content: str, my_agent_name: str) -> Dict[str, Any]:
+    """
+    自动回复收到的代理消息（简化版）
+    
+    自动解析收到的消息，并生成回复。
+    
+    Args:
+        received_message: 收到的消息内容
+        reply_content: 回复内容
+        my_agent_name: 自己的Agent名称
+        
+    Returns:
+        {
+            "success": True/False,
+            "result": {...}  # feishu_agent_send 的返回结果
+            # 或
+            "success": False,
+            "error": "错误信息"
+        }
+        
+    Example:
+        >>> result = auto_reply(
+        ...     received_message="📨【群】【代理】【CPA助攻→开发组长】...",
+        ...     reply_content="收到，马上处理！",
+        ...     my_agent_name="开发组长"
+        ... )
+        >>> if result["success"]:
+        ...     print("✅ 回复成功")
+        ... else:
+        ...     print(f"❌ 回复失败：{result['error']}")
+    """
+    # 解析收到的消息
+    parsed = parse_proxy_message(received_message, my_agent_name)
+    
+    if not parsed:
+        return {"success": False, "error": "不是代理消息"}
+    
+    # 检查是否是自己发的
+    if parsed.get("is_from_myself"):
+        return {"success": False, "error": "是自己发的消息"}
+    
+    # 生成回复
+    result = feishu_agent_send(
+        to=parsed['from_agent'],
+        message=reply_content,
+        from_agent=my_agent_name,
+        chat_type=parsed['chat_type']
+    )
+    
+    if result["success"]:
+        return {"success": True, "result": result}
+    else:
+        return {"success": False, "error": result.get("error", "发送失败")}
+
+
 if __name__ == "__main__":
     # 运行测试
     print("=== feishu_agent_send 测试 ===")

@@ -157,6 +157,9 @@ def main():
             print(f"\n✅ 消息已准备好，发送给 {to_agent}（{type_label}）")
             if multi_scene:
                 print(f"   注意：该 Agent 有多个场景，当前选择 {type_label}")
+            # 群消息延迟提示
+            if chat_type == 'group':
+                print(f"   ⚠️ 群消息：请等待 6 秒后再执行发送")
             print(f"\n📋 {result.get('instruction', '')}")
             print(f"\n--- JSON 输出 ---")
             print(json.dumps(result, ensure_ascii=False, indent=2))

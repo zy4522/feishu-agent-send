@@ -222,13 +222,18 @@ def feishu_agent_send_and_deliver(
     chat_id = result['chat_id']
     ct = result['chat_type']
     content = json.dumps({'text': result['formatted_message']}, ensure_ascii=False)
+    
+    # 群消息延迟提示
+    delay_hint = ''
+    if ct == 'group':
+        delay_hint = '\n   ⚠️ 群消息延迟：请等待 6 秒后再执行发送\n'
 
     deliver = {
         'success': True,
         'mode': 'deliver',
         'instruction': (
             f'请执行以下操作完成发送和记录：\n\n'
-            f'1. 发送消息：\n'
+            f'1. 发送消息：{delay_hint}'
             f'feishu_im_user_message(\n'
             f"    action='send',\n"
             f"    receive_id_type='chat_id',\n"

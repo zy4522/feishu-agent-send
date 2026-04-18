@@ -6,7 +6,7 @@ feishu_set_self.py - 设置当前 Agent 的 self 信息
   python3 feishu_set_self.py <Agent名称> <chat_id>
 
 示例：
-  python3 feishu_set_self.py kfj oc_4811eda51e2e9626fc7dfea21882942b
+  python3 feishu_set_self.py kfj oc_xxx
 """
 
 import sys

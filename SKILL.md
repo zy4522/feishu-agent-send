@@ -12,7 +12,7 @@
 python3 ~/.openclaw/skills/feishu_agent_send/tools/feishu_set_self.py <Agent名> <你的chat_id>
 
 # 示例
-python3 feishu_set_self.py kfj oc_4811eda51e2e9626fc7dfea21882942b
+python3 feishu_set_self.py kfj oc_xxx
 ```
 
 ### 2. 添加其他 Agent
@@ -21,7 +21,7 @@ python3 feishu_set_self.py kfj oc_4811eda51e2e9626fc7dfea21882942b
 python3 feishu_add.py <目标Agent> <chat_id>
 
 # 示例
-python3 feishu_add.py ying oc_9c8528a08be665f04bfa857e07cd535d
+python3 feishu_add.py ying oc_xxx
 ```
 
 ### 3. 发送消息（推荐 --deliver）

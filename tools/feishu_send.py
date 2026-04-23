@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_send.py - 发送消息给飞书 Agent v3.1.0
+feishu_send.py - 发送消息给飞书 Agent v3.6.0
 
 用法：
   python3 feishu_send.py <目标Agent> <消息内容> [选项]
@@ -8,14 +8,14 @@ feishu_send.py - 发送消息给飞书 Agent v3.1.0
 选项：
   --from            发送者名称（自动检测）
   --chat-type       p2p 或 group，强制指定类型
-  --deliver         一站式发送（输出调用指令）
+  --deliver         输出调用指令（推荐）
 
 示例：
-  # 预览模式
-  python3 feishu_send.py 颖小兔 "你好"
+  # 预览模式（输出 JSON，不调用发送）
+  python3 feishu_send.py ying "你好"
   
-  # 一站式发送（推荐）
-  python3 feishu_send.py 颖小兔 "你好" --deliver
+  # 一站式发送（输出 feishu_im_user_message 调用指令）
+  python3 feishu_send.py ying "你好" --deliver
 """
 
 import sys
@@ -24,12 +24,7 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from feishu_agent_send import (
-    AgentConfig,
-    feishu_agent_send,
-    feishu_agent_send_and_deliver,
-    list_known_agents
-)
+from feishu_agent_send import AgentConfig, feishu_agent_send_and_deliver, list_known_agents
 
 
 def main():
@@ -40,7 +35,7 @@ def main():
             'success': False,
             'error': '参数不足',
             'usage': 'python3 feishu_send.py <目标Agent> <消息> [--from 发送者] [--chat-type p2p|group] [--deliver]',
-            'v3.1.0': '推荐使用 --deliver 一站式发送'
+            'v3.4.0': '推荐使用 --deliver 一站式发送'
         }, ensure_ascii=False))
         sys.exit(1)
     
@@ -68,6 +63,8 @@ def main():
     # 自动检测当前 agent
     if not from_agent:
         from_agent = AgentConfig.detect_current_agent()
+        if from_agent:
+            print(f'📝 自动检测发送者：{from_agent}')
     
     # 获取发送者的 chat_id
     self_info = AgentConfig.get_self(from_agent) if from_agent else None
@@ -87,7 +84,7 @@ def main():
             'success': False,
             'error': '缺少发送者信息',
             'hint': hint,
-            'v3.1.0_help': '首次使用请运行：python3 feishu_set_self.py <你的Agent名> <你的chat_id>'
+            'v3.6.0_help': '首次使用请运行：python3 feishu_set_self.py <你的Agent名> <你的chat_id>'
         }, ensure_ascii=False))
         sys.exit(1)
     
@@ -102,12 +99,12 @@ def main():
             'success': False,
             'error': f"找不到 Agent '{to_agent}'",
             'available_agents': all_agents[:10],
-            'v3.1.0_help': f'请先添加：python3 feishu_add.py {to_agent} oc_xxx'
+            'v3.6.0_help': f'请先添加：python3 feishu_add.py {to_agent} oc_xxx'
         }, ensure_ascii=False))
         sys.exit(1)
     
     chat_id = agent_info.get('chat_id')
-    # 验证 chat_type
+    # Bug 修复：验证 chat_type 只能是 p2p 或 group
     valid_chat_types = ['p2p', 'group']
     if chat_type_override and chat_type_override not in valid_chat_types:
         print(json.dumps({
@@ -124,58 +121,82 @@ def main():
     agent_config = config.get('agents', {}).get(to_agent)
     
     multi_scene = False
-    scene_hint = None
     if isinstance(agent_config, dict) and ('p2p' in agent_config or 'group' in agent_config):
         available = [k for k in ['p2p', 'group'] if k in agent_config]
         if len(available) > 1 and not chat_type_override:
             multi_scene = True
             chosen = '私聊' if chat_type == 'p2p' else '群聊'
-            scene_hint = (
-                f"Agent '{to_agent}' 有多个配置：私聊、群聊。"
-                f"已自动选择：{chosen}。"
-                f"如需切换，请使用：--chat-type {'group' if chat_type == 'p2p' else 'p2p'}"
-            )
+            print(f"⚠️ Agent '{to_agent}' 有多个配置：私聊、群聊")
+            print(f"   已自动选择：{chosen}")
+            print(f"   如需切换，请使用：--chat-type {'group' if chat_type == 'p2p' else 'p2p'}")
     
-    type_label = '私信' if chat_type == 'p2p' else '群'
+    # 格式化消息（根据聊天类型选择格式）
+    ct = chat_type_override or agent_info.get('chat_type', 'p2p')
+    
+    # 获取目标 Agent 的 app_id（群聊 @ 用）
+    to_app_id = AgentConfig.get_agent_app_id(to_agent) if ct == 'group' else None
+    
+    if ct == 'group' and to_app_id:
+        # 群聊：使用 post 富文本格式
+        from feishu_agent_send import build_post_content
+        content_obj = build_post_content(message, from_agent, to_agent, to_app_id)
+        content = json.dumps(content_obj, ensure_ascii=False)
+        msg_type = 'post'
+        preview = content
+    else:
+        # 私聊：使用 text 纯文本格式
+        type_label = '私信'
+        from_marker = f'<!--from:{from_agent}-->'
+        from_chat_marker = f'<!--from_chat:{my_chat_id}-->'
+        
+        formatted = (
+            f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】'
+            f'{from_marker}{from_chat_marker}\n\n'
+            f'{message}\n\n---\n'
+            f'实际发送者：{from_agent}\n代理发送者：{from_agent}\n---'
+        )
+        content = json.dumps({'text': formatted}, ensure_ascii=False)
+        msg_type = 'text'
+        preview = formatted
+    
+    send_params = {
+        'action': 'send',
+        'receive_id_type': 'chat_id',
+        'receive_id': chat_id,
+        'msg_type': msg_type,
+        'content': content
+    }
     
     if deliver_mode:
-        # v3.1.0: 使用 feishu_agent_send_and_deliver 统一处理
+        # v3.6.0: 一站式发送 - 调用 feishu_agent_send_and_deliver
         result = feishu_agent_send_and_deliver(to_agent, message, from_agent, chat_type_override)
         if result.get('success'):
-            # 追加多场景提示到结果
+            print(f"\n✅ 消息已准备好，发送给 {to_agent}（{'群聊' if ct == 'group' else '私聊'}）")
             if multi_scene:
-                result['scene_hint'] = scene_hint
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+                print(f"   注意：该 Agent 有多个场景，当前选择 {'群聊' if ct == 'group' else '私聊'}")
+            if ct == 'group':
+                print(f"   ⚠️ 群消息：请等待 6 秒后再执行发送")
+                if to_app_id:
+                    print(f"   📎 包含 @{to_agent} 的 @ 提醒")
+            print(f"\n📋 {result.get('instruction', '')}")
         else:
             print(json.dumps(result, ensure_ascii=False))
             sys.exit(1)
     else:
         # 预览模式
-        result = feishu_agent_send(to_agent, message, from_agent, chat_type_override)
-        if result.get('success'):
-            # 构造预览输出（兼容旧格式）
-            output = {
-                'success': True,
-                'send_params': {
-                    'action': 'send',
-                    'receive_id_type': 'chat_id',
-                    'receive_id': result['chat_id'],
-                    'msg_type': 'text',
-                    'content': json.dumps({'text': result['formatted_message']}, ensure_ascii=False)
-                },
-                'preview': result['formatted_message'],
-                'chat_id': result['chat_id'],
-                'chat_type': result['chat_type'],
-                'to': to_agent,
-                'from_agent': from_agent,
-                'v3.1.0_hint': '使用 --deliver 获取完整发送指令'
-            }
-            if multi_scene:
-                output['scene_hint'] = scene_hint
-            print(json.dumps(output, ensure_ascii=False, indent=2))
-        else:
-            print(json.dumps(result, ensure_ascii=False))
-            sys.exit(1)
+        result = {
+            'success': True,
+            'send_params': send_params,
+            'preview': preview,
+            'chat_id': chat_id,
+            'chat_type': ct,
+            'msg_type': msg_type,
+            'to': to_agent,
+            'from_agent': from_agent,
+            'to_app_id': to_app_id,
+            'v3.6.0_hint': '使用 --deliver 获取完整发送指令'
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

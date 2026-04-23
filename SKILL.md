@@ -218,6 +218,54 @@ python3 feishu_scan_group.py oc_xxx --import /tmp/group_members.json
 - `app_id` 通过 `feishu_scan_group.py` 自动采集，无需手动配置
 - 多场景配置中，`app_id` 可放在顶层或 group 子配置中
 
+## 🏷️ 群聊 @ 功能配置（name_mappings）
+
+群聊 @ 功能需要配置名称映射，将飞书机器人名称映射到 Agent 名称：
+
+```json
+{
+  "version": "3.6.0",
+  "name_mappings": {
+    "ying": ["颖", "ying", "颖小兔"],
+    "main": ["大总管", "main"],
+    "iio": ["信息官", "iio"],
+    "kfj": ["开发机", "kfj"],
+    "zz": ["组长", "zz"],
+    "ayy": ["啊呀呀", "ayy"],
+    "cpaas": ["cpa", "cpaas", "学助", "CPA学习助理"]
+  }
+}
+```
+
+**配置说明：**
+- 键：Agent 名称（与 `agents` 中的键一致）
+- 值：字符串数组，包含该 Agent 在飞书中的所有可能名称/别名
+- `feishu_scan_group.py` 会自动使用此配置匹配机器人
+
+**默认值（内置）：**
+如果 `config.json` 中没有 `name_mappings` 字段，系统会使用以下默认映射：
+
+| Agent | 默认映射 |
+|-------|---------|
+| ying | ["颖", "ying"] |
+| main | ["大总管", "main"] |
+| iio | ["信息官", "iio"] |
+| kfj | ["开发机", "kfj"] |
+| zz | ["组长", "zz"] |
+| ayy | ["啊呀呀", "ayy"] |
+| cpaas | ["cpa", "cpaas", "学助"] |
+
+**自定义示例：**
+如果你的机器人名称与默认值不同，请在 `config.json` 中添加：
+
+```json
+{
+  "name_mappings": {
+    "my_agent": ["我的机器人", "my_bot"]
+  }
+}
+```
+
 ## 📝 使用流程
 
 ```bash
@@ -228,7 +276,11 @@ python3 feishu_set_self.py <你的Agent名> <你的chat_id>
 python3 feishu_add.py <目标Agent> <目标chat_id>
 
 # 3. 群聊初始化（如需要群聊 @ 功能）
-python3 feishu_scan_group.py <群chat_id> --import <成员列表文件>
+# 方式A：全自动（从消息历史提取）
+python3 feishu_scan_group.py <群chat_id>
+
+# 方式B：手动导入（兼容旧版）
+python3 feishu_scan_group.py <群chat_id> --manual <消息历史文件>
 
 # 4. 发送消息（--deliver 模式）
 python3 feishu_send.py <目标> "消息" --deliver
@@ -267,13 +319,26 @@ python3 feishu_send.py ying "消息" --chat-type group  # 群聊
 
 **Q: 群聊没有 @ 提醒？**  
 A: 需要先运行群初始化采集 app_id：
-```bash
-# 1. 在群里 @ 各 Agent 发消息
-# 2. 获取群成员列表
-feishu_chat_members(chat_id='oc_xxx', page_size=200)
 
-# 3. 导入并自动匹配
-python3 feishu_scan_group.py oc_xxx --import /tmp/members.json
+```bash
+# 全自动方式（推荐）
+python3 feishu_scan_group.py oc_xxx
+
+# 或手动方式
+feishu_im_user_get_messages(chat_id='oc_xxx', page_size=100, relative_time='last_7_days')
+# 保存结果后
+python3 feishu_scan_group.py oc_xxx --manual /tmp/messages.json
+```
+
+**Q: 扫描时显示"未匹配的机器人"？**  
+A: 需要在 `config.json` 中添加 `name_mappings` 配置：
+
+```json
+{
+  "name_mappings": {
+    "your_agent": ["飞书机器人名", "别名"]
+  }
+}
 ```
 
 **Q: 多场景配置怎么用？**  

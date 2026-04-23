@@ -1,6 +1,6 @@
 # feishu_agent_send - 飞书多 Agent 通信工具
 
-**版本：** 3.1.0  
+**版本：** 3.6.0  
 **定位：** 一个 skill，所有 agent 共用，自动识别身份
 
 ⚠️ **安全声明：** 本 skill 使用 `feishu_im_user_message` 以**用户身份**发送飞书消息。请确保只在你信任的 Agent 之间使用，避免敏感信息泄露。
@@ -11,7 +11,7 @@
 
 ```bash
 # 设置当前 Agent 的 self 信息
-python3 ~/.openclaw/skills/feishu_agent_send/tools/feishu_set_self.py <Agent名> <你的chat_id>
+python3 ~/.openclaw/skills/feishu-agent-send/tools/feishu_set_self.py <Agent名> <你的chat_id>
 
 # 示例
 python3 feishu_set_self.py kfj oc_xxx
@@ -20,20 +20,38 @@ python3 feishu_set_self.py kfj oc_xxx
 ### 2. 添加其他 Agent
 
 ```bash
-python3 feishu_add.py <目标Agent> <chat_id> [--chat-type p2p|group]
+python3 feishu_add.py <目标Agent> <chat_id>
 
 # 示例
 python3 feishu_add.py ying oc_xxx
-python3 feishu_add.py ying oc_yyy --chat-type group
 ```
 
-### 3. 发送消息（推荐 --deliver）
+### 3. 群聊初始化（采集 app_id）
+
+**群聊 @ 功能需要先在群里采集各 Agent 的 app_id：**
 
 ```bash
-# v3.1.0 推荐：一站式发送
+# 步骤 1：在群里 @ 各 Agent 发一条消息（确保机器人在群里）
+
+# 步骤 2：获取群成员列表
+feishu_chat_members(
+    chat_id='oc_xxx',
+    page_size=200
+)
+
+# 步骤 3：保存结果到文件，然后导入
+python3 feishu_scan_group.py oc_xxx --import /tmp/group_members.json
+```
+
+采集完成后，后续群聊发送会自动使用 post 富文本格式并 @ 目标 Agent。
+
+### 4. 发送消息
+
+```bash
+# 一站式发送（推荐）：输出 feishu_im_user_message 调用指令
 python3 feishu_send.py ying "你好" --deliver
 
-# 预览模式（不输出发送指令）
+# 预览模式（仅输出 JSON，不调用）
 python3 feishu_send.py ying "你好"
 ```
 
@@ -41,49 +59,150 @@ python3 feishu_send.py ying "你好"
 
 | 工具 | 用途 | 推荐 |
 |------|------|------|
-| `feishu_send.py --deliver` | **一站式发送**（输出 `feishu_im_user_message` 调用指令） | ⭐⭐⭐ |
-| `feishu_send.py` | 预览消息（返回格式化后的消息和参数） | ⭐ |
+| `feishu_send.py --deliver` | **一站式发送**（输出调用指令） | ⭐⭐⭐ |
+| `feishu_send.py` | 预览 JSON（调试用） | ⭐ |
 | `feishu_set_self.py` | 设置自己的发送者信息 | 仅首次 |
-| `feishu_add.py` | 添加其他 Agent（支持多场景） | 配置时 |
-| `feishu_who.py` | 查看所有 Agent 配置（JSON 输出） | 查询 |
+| `feishu_add.py` | 添加其他 Agent | 配置时 |
+| `feishu_scan_group.py` | 扫描群成员采集 app_id | 群初始化 |
+| `feishu_who.py` | 查看所有 Agent | 查询 |
 
-## ✨ v3.1.0 改进
+## ✨ v3.6.0 改进
 
-### 1. 统一 JSON 输出
-所有工具（成功和失败）统一输出 JSON，方便脚本解析和 AI 处理。
+### 1. 合并 v3.5.0 群聊 @ 功能与 v3.1.0 代码改进
+- 保留群聊 post 富文本格式和 @ 提醒功能
+- 吸收代码精简、Bug 修复、JSON 元数据等改进
 
-### 2. 修复 `feishu_add.py` 数据迁移 Bug
-旧格式（单 `chat_id`）升级到新格式（场景结构 `p2p`/`group`）时，不再污染数据。
-
-### 3. 改进消息元数据格式
-从 HTML 注释 `<!--from:xxx-->` 升级为 **JSON 元数据块**，接收方可稳定解析：
+### 2. 统一 JSON 元数据格式
+从 HTML 注释 `<!--from:xxx-->` 升级为 **JSON 元数据块**：
 ```
-元数据：{"from_agent":"kfj","to_agent":"ying","chat_type":"p2p","timestamp":"2024-...","version":"3.1.0"}
+元数据：{"from_agent":"kfj","to_agent":"ying","chat_type":"p2p","timestamp":"2024-...","version":"3.6.0"}
 ```
 
-### 4. 清理硬编码路径
-移除项目特定的日志路径 `/root/.openclaw/self-evolving-feishu/storage/execution_log.jsonl`。
-
-### 5. 移除无依据的延迟提示
-删除"群消息需等待 6 秒"的提示（飞书 API 无此限制）。
-
-### 6. 代码精简
-- 删除死代码 `ConfigManager` 类
-- 移除 `AgentConfig` 无意义的单例模式
+### 3. 代码精简
+- 删除无意义的单例模式
 - 修复 `detect_current_agent` 的路径前缀匹配 Bug
+- 移除硬编码路径和延迟提示
+
+### 4. 修复 `feishu_add.py` 数据迁移 Bug
+旧格式升级到新格式时，不再污染数据。
+
+## ✨ v3.5.0 群聊 @ 功能
+
+### 1. 群聊自动使用 post 富文本格式
+
+群聊发送时自动切换为 `msg_type='post'`，支持 @ 目标 Agent。
+
+### 2. 群初始化引导
+
+无需手动配置 app_id，通过群成员扫描自动采集：
+
+```bash
+# 扫描群成员并自动匹配已配置 Agent
+python3 feishu_scan_group.py oc_xxx --import /tmp/group_members.json
+```
+
+### 3. 向后兼容
+
+私聊继续沿用 `msg_type='text'` 纯文本格式，不受影响。
+
+## ✨ v3.4.0 改进
+
+### 1. 删除不可用的 --send 模式
+
+之前尝试通过飞书 Bot API 直接发送，但 Bot 没有目标 chat 的成员权限（报 `Bot can NOT be out of the chat`），因此删除此功能，避免 Agent 困惑。
+
+### 2. 修复 `get_agent_info()` 多场景判断逻辑
+
+调整判断顺序：先检查多场景（p2p/group），再检查单场景（chat_id），避免多场景配置被错误识别。
+
+### 3. 修复 `feishu_add.py` 升级逻辑
+
+从单场景升级到多场景时，正确保留旧 chat_id 和对应的 chat_type。
+
+### 4. 统一 "代理发送者" 字段
+
+所有代码路径统一为 `{from_agent}`，避免不同文件输出不一致。
+
+## ✨ v3.2.0 功能
+
+- 自动身份检测增强：`detect_current_agent()` 支持 main Agent 在 workspace 根目录
+- 消息格式规范：完整的消息结构说明
+- openclaw.json 绑定检查：首次设置自动检查路由配置
+
+## ✨ v3.0.0 功能
+
+### 1. --deliver 一站式发送
+
+输出完整的 `feishu_im_user_message` 调用指令 + 日志记录提示
+
+### 2. 多场景智能提示
+
+当 Agent 同时有私聊+群聊配置时，自动提示并给出切换指令
+
+### 3. 用户语言错误提示
+
+错误信息不再是技术术语，而是分步骤的解决指引
+
+### 4. 群消息延迟发送
+
+群消息（`--chat-type group`）会提示等待 6 秒后再执行发送，避免频繁发送
+
+## 📖 消息标准格式
+
+### 私聊格式（text）
+
+所有 Agent 间私聊通信消息遵循以下统一格式：
+
+```
+📨【私信】【代理】【{发送者}→{接收者}】
+
+{消息正文}
+
+---
+实际发送者：{发送者}
+代理发送者：用户
+元数据：{"from_agent":"xxx","to_agent":"xxx","chat_type":"p2p","timestamp":"...","version":"3.6.0"}
+---
+```
+
+### 群聊格式（post）
+
+群聊使用飞书富文本格式，自动包含 @ 提醒：
+
+```json
+{
+  "zh_cn": {
+    "title": "@{接收者} 你有新消息",
+    "content": [
+      [
+        {"tag": "at", "user_id": "cli_xxx", "user_name": "{接收者}"},
+        {"tag": "text", "text": "\n\n{消息正文}\n\n---\n📨 群聊代理发送 | {发送者} → {接收者}"}
+      ]
+    ]
+  }
+}
+```
+
+### 解析规则
+
+接收方 Agent 应按以下优先级提取信息：
+1. 从 JSON 元数据块提取真实发送者（私聊）
+2. 从 post 消息 title 和内容提取路由信息（群聊）
+3. 从元数据 `from_chat_id` 提取发送者会话 ID（用于回复）
 
 ## 📋 配置结构
 
 ```json
 {
-  "version": "3.1.0",
+  "version": "3.6.0",
   "agents": {
     "ying": {
       "p2p": {"chat_id": "oc_xxx"},
-      "group": {"chat_id": "oc_yyy"}
+      "group": {"chat_id": "oc_yyy", "app_id": "cli_xxx"}
     },
     "kfj": {
-      "p2p": {"chat_id": "oc_xxx"}
+      "p2p": {"chat_id": "oc_xxx"},
+      "app_id": "cli_xxx"
     }
   },
   "self_by_agent": {
@@ -95,6 +214,10 @@ python3 feishu_send.py ying "你好"
 
 配置文件位置：`~/.feishu_agent_send/config.json`
 
+**说明：**
+- `app_id` 通过 `feishu_scan_group.py` 自动采集，无需手动配置
+- 多场景配置中，`app_id` 可放在顶层或 group 子配置中
+
 ## 📝 使用流程
 
 ```bash
@@ -104,10 +227,13 @@ python3 feishu_set_self.py <你的Agent名> <你的chat_id>
 # 2. 添加常用联系人
 python3 feishu_add.py <目标Agent> <目标chat_id>
 
-# 3. 发送消息（--deliver 模式）
+# 3. 群聊初始化（如需要群聊 @ 功能）
+python3 feishu_scan_group.py <群chat_id> --import <成员列表文件>
+
+# 4. 发送消息（--deliver 模式）
 python3 feishu_send.py <目标> "消息" --deliver
 
-# 4. 执行输出的 feishu_im_user_message 调用
+# 5. 执行输出的 feishu_im_user_message 调用
 ```
 
 ## 🐛 常见问题与错误处理
@@ -122,7 +248,7 @@ python3 feishu_set_self.py <你的Agent名> oc_xxx
 A: 工具会自动列出可用 Agent，按提示添加：
 ```bash
 # 错误示例：找不到 'test'
-# 输出中会有："available_agents": ["ying", "kfj", "main"]
+# 输出：available_agents: ['ying', 'kfj', 'main']
 
 # 解决：添加该 Agent
 python3 feishu_add.py test oc_xxx
@@ -131,36 +257,52 @@ python3 feishu_add.py test oc_xxx
 **Q: 报错"无效的 chat_type: 'xxx'"？**  
 A: `--chat-type` 只接受 `p2p` 或 `group`，其他值会报错并列出有效选项
 ```bash
+# 错误示例：--chat-type private
+# 输出：valid_options: ['p2p', 'group']
+
 # 正确用法
 python3 feishu_send.py ying "消息" --chat-type p2p   # 私聊
 python3 feishu_send.py ying "消息" --chat-type group  # 群聊
 ```
 
+**Q: 群聊没有 @ 提醒？**  
+A: 需要先运行群初始化采集 app_id：
+```bash
+# 1. 在群里 @ 各 Agent 发消息
+# 2. 获取群成员列表
+feishu_chat_members(chat_id='oc_xxx', page_size=200)
+
+# 3. 导入并自动匹配
+python3 feishu_scan_group.py oc_xxx --import /tmp/members.json
+```
+
 **Q: 多场景配置怎么用？**  
 A: 默认选择私聊，如需发群聊加 `--chat-type group`
 ```bash
-# Agent 同时有私聊和群聊配置时，JSON 中会包含：
-# "scene_hint": "Agent 'ying' 有多个配置：私聊、群聊。已自动选择：私聊。如需切换，请使用：--chat-type group"
+# Agent 同时有私聊和群聊配置时，会提示：
+# ⚠️ Agent 'ying' 有多个配置：私聊、群聊
+#    已自动选择：私聊
+#    如需切换，请使用：--chat-type group
 ```
 
-## 📚 错误输出格式（统一 JSON）
+## 📚 错误输出格式（v3.6.0 统一 JSON）
 
 所有输出均为 JSON，方便解析：
 
-| 场景 | 字段 |
-|------|------|
-| 成功发送 | `success`, `send_params`, `preview`, `chat_id`, `chat_type`, `to`, `from_agent` |
-| 缺少发送者 | `success`, `error`, `hint`, `v3.1.0_help` |
-| 找不到Agent | `success`, `error`, `available_agents`, `v3.1.0_help` |
-| 无效chat_type | `success`, `error`, `valid_options`, `hint` |
+| 错误类型 | 输出字段 | 示例 |
+|---------|---------|------|
+| 缺少发送者 | `error`, `hint`, `v3.6.0_help` | "首次使用请运行 feishu_set_self.py" |
+| 找不到Agent | `error`, `available_agents`, `v3.6.0_help` | "找不到 'test'，可用: ying, kfj" |
+| 无效chat_type | `error`, `valid_options`, `hint` | "无效 'private'，有效: p2p, group" |
+| 未采集app_id | `error`, `hint` | "请先运行 feishu_scan_group.py 采集 app_id" |
 
-**示例错误输出**：
+**示例输出**：
 ```json
 {
   "success": false,
   "error": "找不到 Agent 'test'",
   "available_agents": ["ying", "kfj", "main"],
-  "v3.1.0_help": "请先添加：python3 feishu_add.py test oc_xxx"
+  "v3.6.0_help": "请先添加：python3 feishu_add.py test oc_xxx"
 }
 ```
 
@@ -168,5 +310,9 @@ A: 默认选择私聊，如需发群聊加 `--chat-type group`
 
 | 版本 | 功能 |
 |------|------|
-| v3.1.0 | 统一 JSON 输出、修复 add Bug、JSON 元数据、清理硬编码路径、代码精简 |
+| v3.6.0 | 合并 v3.5.0 群聊 @ 功能与 v3.1.0 代码改进：JSON 元数据、代码精简、Bug 修复 |
+| v3.5.0 | 群聊 post 富文本格式、@ 提醒功能、群初始化采集 app_id、feishu_scan_group.py 工具 |
+| v3.4.0 | 删除不可用--send、修复get_agent_info多场景判断、修复feishu_add升级逻辑、统一代理发送者字段 |
+| v3.2.0 | main路径检测、消息格式规范、openclaw.json绑定检查、移除死代码 |
+| v3.0.1 | 群消息延迟发送、移除真实chat_id |
 | v3.0.0 | --deliver一站式发送、多场景提示、用户语言错误、chat_type验证 |

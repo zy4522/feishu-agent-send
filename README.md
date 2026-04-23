@@ -34,3 +34,5 @@ zy4522 (张彦)
 ## License
 
 MIT
+
+<!-- auto-sync test: 2026-04-23T15:46:00Z -->

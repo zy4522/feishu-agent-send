@@ -109,29 +109,32 @@ def main():
             matched_agent = None
             name_lower = name.lower()
             
-            # 定义名称映射规则
-            name_mappings = {
-                '颖': 'ying',
-                'ying': 'ying',
-                '大总管': 'main',
-                'main': 'main',
-                '信息官': 'iio',
-                'iio': 'iio',
-                '开发机': 'kfj',
-                'kfj': 'kfj',
-                '组长': 'zz',
-                'zz': 'zz',
-                '啊呀呀': 'ayy',
-                'ayy': 'ayy',
-                'cpa': 'cpaas',
-                'cpaas': 'cpaas',
-                '学助': 'cpaas',
-            }
+            # 从配置文件读取名称映射规则
+            config = AgentConfig.load()
+            name_mappings = config.get('name_mappings', {})
             
-            # 先尝试直接映射
-            for key, agent_name in name_mappings.items():
-                if key in name_lower:
-                    matched_agent = agent_name
+            # 如果没有配置，使用默认映射
+            if not name_mappings:
+                name_mappings = {
+                    'ying': ['颖', 'ying'],
+                    'main': ['大总管', 'main'],
+                    'iio': ['信息官', 'iio'],
+                    'kfj': ['开发机', 'kfj'],
+                    'zz': ['组长', 'zz'],
+                    'ayy': ['啊呀呀', 'ayy'],
+                    'cpaas': ['cpa', 'cpaas', '学助'],
+                }
+            
+            # 先尝试配置文件映射
+            matched_agent = None
+            name_lower = name.lower()
+            
+            for agent_name, aliases in name_mappings.items():
+                for alias in aliases:
+                    if alias.lower() in name_lower:
+                        matched_agent = agent_name
+                        break
+                if matched_agent:
                     break
             
             # 再尝试模糊匹配

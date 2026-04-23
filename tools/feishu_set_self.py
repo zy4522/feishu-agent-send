@@ -11,6 +11,7 @@ feishu_set_self.py - 设置当前 Agent 的 self 信息
 
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,15 +28,19 @@ def main():
     chat_id = sys.argv[2]
     
     AgentConfig.set_self(agent_name, chat_id)
-    print(f"✅ 已设置 {agent_name} 的 self 信息: {chat_id[:20]}...")
     
-    # 显示已配置的所有 Agent
     all_self = AgentConfig.get_all_self()
-    if len(all_self) > 1:
-        print("\n已配置的 Agent self 列表:")
-        for name, info in all_self.items():
-            cid = info.get('chat_id', '')[:20]
-            print(f"  • {name}: {cid}...")
+    result = {
+        'success': True,
+        'agent': agent_name,
+        'chat_id_prefix': chat_id[:20] + '...',
+        'total_configured': len(all_self),
+        'all_agents': {
+            name: {'chat_id_prefix': info.get('chat_id', 'N/A')[:20] + '...'}
+            for name, info in all_self.items()
+        }
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

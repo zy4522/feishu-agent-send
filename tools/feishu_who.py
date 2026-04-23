@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-feishu_who.py - 查看所有 Agent 信息
+feishu_who.py - 查看所有 Agent 信息 v3.1.0
+
+输出格式：统一 JSON
 """
 
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from feishu_agent_send import AgentConfig, list_known_agents
+from feishu_agent_send import AgentConfig
 
 
 def main():
@@ -16,32 +19,42 @@ def main():
     agents = config.get('agents', {})
     self_by_agent = config.get('self_by_agent', {})
     
-    print("📋 已知 Agent 列表\n" + "=" * 50)
+    result = {
+        'version': config.get('version', '3.1.0'),
+        'total': len(agents),
+        'agents': {}
+    }
     
     for name, info in agents.items():
-        print(f"\n👤 {name}")
+        agent_entry = {
+            'self_configured': name in self_by_agent,
+            'scenes': {}
+        }
         
-        # 显示对话配置
         if isinstance(info, dict):
             if 'p2p' in info:
-                cid = info['p2p'].get('chat_id', 'N/A')[:20]
-                print(f"   私聊: {cid}...")
+                agent_entry['scenes']['p2p'] = {
+                    'chat_id_prefix': info['p2p'].get('chat_id', 'N/A')[:20] + '...'
+                }
             if 'group' in info:
-                cid = info['group'].get('chat_id', 'N/A')[:20]
-                print(f"   群聊: {cid}...")
+                agent_entry['scenes']['group'] = {
+                    'chat_id_prefix': info['group'].get('chat_id', 'N/A')[:20] + '...'
+                }
             if 'chat_id' in info:
-                cid = info['chat_id'][:20]
-                print(f"   对话: {cid}...")
+                # 旧格式兼容
+                agent_entry['scenes']['legacy'] = {
+                    'chat_type': info.get('chat_type', 'p2p'),
+                    'chat_id_prefix': info['chat_id'][:20] + '...'
+                }
         
-        # 显示 self 配置
         if name in self_by_agent:
-            cid = self_by_agent[name].get('chat_id', 'N/A')[:20]
-            print(f"   ✅ self: {cid}...")
-        else:
-            print(f"   ❌ 未设置 self")
+            agent_entry['self'] = {
+                'chat_id_prefix': self_by_agent[name].get('chat_id', 'N/A')[:20] + '...'
+            }
+        
+        result['agents'][name] = agent_entry
     
-    print("\n" + "=" * 50)
-    print(f"总计: {len(agents)} 个 Agent")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

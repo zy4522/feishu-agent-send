@@ -5,6 +5,7 @@ feishu_add.py - 添加 Agent 到配置
 
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -36,21 +37,31 @@ def main():
     if agent_name not in config['agents']:
         config['agents'][agent_name] = {}
     
-    # 如果已有多个场景，用场景结构
+    # v3.1.0 修复：正确处理新旧配置迁移
     existing = config['agents'][agent_name]
+    
+    # 如果已经是场景结构，直接追加/覆盖
     if isinstance(existing, dict) and ('p2p' in existing or 'group' in existing):
         existing[chat_type] = {'chat_id': chat_id}
-    else:
+    elif isinstance(existing, dict) and 'chat_id' in existing:
+        # 旧格式迁移：把单 chat_id 拆到场景结构
+        old_chat_id = existing.pop('chat_id')
+        old_type = existing.pop('chat_type', 'p2p')
         config['agents'][agent_name] = {
-            'p2p': {'chat_id': chat_id},
-            'group': existing.get('chat_id') if isinstance(existing, dict) else None
+            old_type: {'chat_id': old_chat_id},
+            chat_type: {'chat_id': chat_id}
         }
-        # 清理 None
-        if config['agents'][agent_name].get('group') is None:
-            del config['agents'][agent_name]['group']
+    else:
+        # 空或无效配置，新建
+        config['agents'][agent_name] = {chat_type: {'chat_id': chat_id}}
     
     AgentConfig.save(config)
-    print(f"✅ 已添加 {agent_name} ({chat_type}): {chat_id[:20]}...")
+    print(json.dumps({
+        'success': True,
+        'agent': agent_name,
+        'chat_type': chat_type,
+        'chat_id_prefix': chat_id[:20] + '...'
+    }, ensure_ascii=False))
 
 
 if __name__ == '__main__':

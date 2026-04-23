@@ -1,0 +1,50 @@
+name: Sync from kclaw
+
+on:
+  repository_dispatch:
+    types: [sync-from-kclaw]
+  workflow_dispatch:
+    inputs:
+      patch_base64:
+        description: 'Base64 encoded patch content'
+        required: true
+      message:
+        description: 'Commit message'
+        required: false
+        default: 'sync: update from kclaw'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.KCLAW_SYNC_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"          
+      
+      - name: Apply patch from repository_dispatch
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "${{ github.event.client_payload.patch_base64 }}" | base64 -d > /tmp/changes.patch
+          git apply /tmp/changes.patch
+          git add -A
+          git commit -m "${{ github.event.client_payload.message || 'sync: update from kclaw' }}" || echo "No changes to commit"
+          git push          
+      
+      - name: Apply patch from workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "${{ github.event.inputs.patch_base64 }}" | base64 -d > /tmp/changes.patch
+          git apply /tmp/changes.patch
+          git add -A
+          git commit -m "${{ github.event.inputs.message }}" || echo "No changes to commit"
+          git push          

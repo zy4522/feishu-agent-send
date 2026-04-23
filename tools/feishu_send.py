@@ -21,6 +21,7 @@ feishu_send.py - 发送消息给飞书 Agent v3.6.0
 import sys
 import os
 import json
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -35,7 +36,7 @@ def main():
             'success': False,
             'error': '参数不足',
             'usage': 'python3 feishu_send.py <目标Agent> <消息> [--from 发送者] [--chat-type p2p|group] [--deliver]',
-            'v3.4.0': '推荐使用 --deliver 一站式发送'
+            'v3.6.0': '推荐使用 --deliver 一站式发送'
         }, ensure_ascii=False))
         sys.exit(1)
     
@@ -144,16 +145,28 @@ def main():
         msg_type = 'post'
         preview = content
     else:
-        # 私聊：使用 text 纯文本格式
+        # 私聊：使用 text 纯文本格式（v3.6.0: JSON 元数据）
         type_label = '私信'
-        from_marker = f'<!--from:{from_agent}-->'
-        from_chat_marker = f'<!--from_chat:{my_chat_id}-->'
+        
+        # JSON 元数据块
+        metadata = {
+            'from_agent': from_agent,
+            'to_agent': to_agent,
+            'from_chat_id': my_chat_id,
+            'chat_type': 'p2p',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'version': '3.6.0'
+        }
+        metadata_json = json.dumps(metadata, ensure_ascii=False)
         
         formatted = (
-            f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】'
-            f'{from_marker}{from_chat_marker}\n\n'
-            f'{message}\n\n---\n'
-            f'实际发送者：{from_agent}\n代理发送者：{from_agent}\n---'
+            f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】\n\n'
+            f'{message}\n\n'
+            f'---\n'
+            f'实际发送者：{from_agent}\n'
+            f'代理发送者：用户\n'
+            f'元数据：{metadata_json}\n'
+            f'---'
         )
         content = json.dumps({'text': formatted}, ensure_ascii=False)
         msg_type = 'text'
@@ -175,7 +188,6 @@ def main():
             if multi_scene:
                 print(f"   注意：该 Agent 有多个场景，当前选择 {'群聊' if ct == 'group' else '私聊'}")
             if ct == 'group':
-                print(f"   ⚠️ 群消息：请等待 6 秒后再执行发送")
                 if to_app_id:
                     print(f"   📎 包含 @{to_agent} 的 @ 提醒")
             print(f"\n📋 {result.get('instruction', '')}")

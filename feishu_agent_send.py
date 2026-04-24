@@ -37,7 +37,7 @@ class AgentConfig:
                     return json.load(f)
             except Exception:
                 pass
-        return {"version": "3.6.0", "agents": {}, "self_by_agent": {}}
+        return {"version": "3.8.0", "agents": {}, "self_by_agent": {}}
 
     @classmethod
     def save(cls, data: Dict[str, Any]):
@@ -241,7 +241,7 @@ def build_text_content(
         'from_chat_id': my_chat_id,
         'chat_type': 'p2p',
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'version': '3.6.0'
+        'version': '3.8.0'
     }
     if actual_sender:
         metadata['actual_sender'] = actual_sender

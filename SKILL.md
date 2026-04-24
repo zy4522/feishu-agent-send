@@ -1,6 +1,6 @@
 # feishu_agent_send - 飞书多 Agent 通信工具
 
-**版本：** 3.7.0  
+**版本：** 3.8.0  
 **定位：** 一个 skill，所有 agent 共用，自动识别身份
 
 ⚠️ **安全声明：** 本 skill 使用 `feishu_im_user_message` 以**用户身份**发送飞书消息。请确保只在你信任的 Agent 之间使用，避免敏感信息泄露。
@@ -75,7 +75,7 @@ python3 feishu_send.py ying "你好"
 | 工具 | 用途 | 推荐 |
 |------|------|------|
 | `feishu_send.py --deliver` | **一站式发送**（输出调用指令） | ⭐⭐⭐ |
-| `feishu_send.py --execute` | **直接执行发送**（尝试自动调用API） | ⭐⭐⭐ |
+| `feishu_send.py --execute` | **生成发送指令**（需手动执行） | ⭐⭐ |
 | `feishu_status.py` | **配置诊断**（检查配置健康状态） | ⭐⭐⭐ |
 | `feishu_send.py` | 预览 JSON（调试用） | ⭐ |
 | `feishu_set_self.py` | 设置自己的发送者信息 | 仅首次 |
@@ -581,6 +581,7 @@ A: 默认选择私聊，如需发群聊加 `--chat-type group`
 
 | 版本 | 功能 |
 |------|------|
+| v3.8.0 | 修复--execute假执行、修复feishu_status.py误报、统一版本号、parse_agent_message、批量发送 |
 | v3.7.0 | 单self自动选择、--execute直接执行、feishu_status.py诊断工具、配置防呆检查、消息来源标识优化、--actual-sender双身份支持 |
 | v3.6.0 | 合并 v3.5.0 群聊 @ 功能与 v3.1.0 代码改进：JSON 元数据、代码精简、Bug 修复 |
 | v3.5.0 | 群聊 post 富文本格式、@ 提醒功能、群初始化采集 app_id、feishu_scan_group.py 工具 |

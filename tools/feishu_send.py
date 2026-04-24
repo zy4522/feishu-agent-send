@@ -110,24 +110,10 @@ def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_send
             if actual_sender:
                 print(f"   👤 实际发送者：{actual_sender}（代理执行者：{from_agent}）")
             
-            print(f"\n🚀 执行发送...")
-            # 调用 feishu_execute.py 执行
-            import subprocess
-            params_json = json.dumps(send_params, ensure_ascii=False)
-            try:
-                exec_result = subprocess.run(
-                    [sys.executable, os.path.join(os.path.dirname(__file__), 'feishu_execute.py'), params_json],
-                    capture_output=True, text=True, timeout=30
-                )
-                if exec_result.returncode == 0:
-                    print("✅ 发送执行完成")
-                    print(exec_result.stdout)
-                else:
-                    print(f"⚠️ 执行返回错误: {exec_result.stderr}")
-            except Exception as e:
-                print(f"⚠️ 执行失败: {str(e)}")
-                print(f"\n📋 请手动执行以下指令：")
-                print(result.get('instruction', ''))
+            print(f"\n⚠️ --execute 模式仅生成指令，不会真正发送")
+            print(f"📋 请使用 --deliver 并手动执行输出指令")
+            print(f"\n📋 发送指令：")
+            print(result.get('instruction', ''))
         else:
             return result
     else:

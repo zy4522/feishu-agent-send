@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_execute.py - 直接执行飞书消息发送 v3.7.0
+feishu_execute.py - 生成飞书消息发送指令 v3.8.0
 
 用法：
   # 方式一：直接传 JSON（适合脚本调用）
@@ -15,7 +15,7 @@ feishu_execute.py - 直接执行飞书消息发送 v3.7.0
 示例：
   python3 feishu_execute.py '{"action":"send","receive_id_type":"chat_id","receive_id":"oc_xxx","msg_type":"post","content":"..."}'
 
-注意：此工具需要 OpenClaw 环境支持，会生成执行日志
+注意：本工具仅生成指令，不会真正发送！需要手动复制到 OpenClaw 会话执行
 """
 
 import sys
@@ -70,11 +70,11 @@ def execute_feishu_send(send_params_json):
     
     return {
         'success': True,
-        'mode': 'execute',
+        'mode': 'instruction_generator',
         'instruction': instruction,
         'params': params,
         'log': log_entry,
-        'note': '请复制上方指令到 OpenClaw 会话中执行'
+        'note': '⚠️ 本工具仅生成指令，不会真正发送。请复制上方指令到 OpenClaw 会话中执行。'
     }
 
 

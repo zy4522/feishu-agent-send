@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_status.py - 飞书 Agent 配置诊断工具 v3.6.0
+feishu_status.py - 飞书 Agent 配置诊断工具 v3.8.0
 
 用法：
   python3 feishu_status.py [选项]
@@ -32,7 +32,7 @@ from feishu_agent_send import AgentConfig, list_known_agents
 
 def check_version(config):
     """检查版本号一致性"""
-    file_version = "3.6.0"  # 代码中的版本
+    file_version = "3.8.0"  # 代码中的版本
     config_version = config.get('version', 'unknown')
     
     if config_version != file_version:
@@ -159,52 +159,60 @@ def check_agents_config(config):
 
 
 def check_config_consistency(config):
-    """检查配置一致性"""
+    """检查配置一致性（v3.8.0 修复误报）"""
     issues = []
     
-    # 检查是否有重复 chat_id
-    chat_ids = {}
+    # 群聊 chat_id 允许多个 Agent 使用（正常），只检查私聊重复
+    p2p_chat_ids = {}
     agents = config.get('agents', {})
     
     for agent_name, agent_config in agents.items():
         if isinstance(agent_config, dict):
             if 'chat_id' in agent_config:
                 cid = agent_config['chat_id']
-                if cid in chat_ids:
-                    issues.append({
-                        'status': 'warning',
-                        'message': f'chat_id {cid[:20]}... 被多个 Agent 使用: {chat_ids[cid]} 和 {agent_name}'
-                    })
-                else:
-                    chat_ids[cid] = agent_name
+                # oc_ 开头的是群聊，不检查重复
+                if not cid.startswith('oc_'):
+                    if cid in p2p_chat_ids:
+                        issues.append({
+                            'status': 'warning',
+                            'message': f'私聊 chat_id {cid[:20]}... 被多个 Agent 使用: {p2p_chat_ids[cid]} 和 {agent_name}'
+                        })
+                    else:
+                        p2p_chat_ids[cid] = agent_name
             
             for scene in ['p2p', 'group']:
                 if scene in agent_config and isinstance(agent_config[scene], dict):
                     cid = agent_config[scene].get('chat_id', '')
                     if cid:
-                        if cid in chat_ids:
-                            issues.append({
-                                'status': 'warning',
-                                'message': f'chat_id {cid[:20]}... 被多个 Agent 使用: {chat_ids[cid]} 和 {agent_name} ({scene})'
-                            })
-                        else:
-                            chat_ids[cid] = f'{agent_name} ({scene})'
+                        # 只检查私聊重复，群聊不检查
+                        if scene == 'p2p' and not cid.startswith('oc_'):
+                            if cid in p2p_chat_ids:
+                                issues.append({
+                                    'status': 'warning',
+                                    'message': f'私聊 chat_id {cid[:20]}... 被多个 Agent 使用: {p2p_chat_ids[cid]} 和 {agent_name} (p2p)'
+                                })
+                            else:
+                                p2p_chat_ids[cid] = f'{agent_name} (p2p)'
     
-    # 检查 self 配置是否和 agents 配置冲突
+    # 检查 self 配置是否和 agents 配置冲突（v3.8.0 修复误报）
     self_by_agent = config.get('self_by_agent', {})
     for self_name, self_info in self_by_agent.items():
         self_chat_id = self_info.get('chat_id', '')
-        if self_chat_id in chat_ids:
-            issues.append({
-                'status': 'warning',
-                'message': f'self 配置 {self_name} 的 chat_id 与 agent {chat_ids[self_chat_id]} 重复'
-            })
+        # 只检查私聊 chat_id 冲突，群聊忽略
+        if self_chat_id and not self_chat_id.startswith('oc_'):
+            if self_chat_id in p2p_chat_ids:
+                agent_with_chat = p2p_chat_ids[self_chat_id]
+                if agent_with_chat == self_name or agent_with_chat == f'{self_name} (p2p)':
+                    continue  # 正常的自我引用，跳过
+                issues.append({
+                    'status': 'warning',
+                    'message': f'self 配置 {self_name} 的私聊 chat_id 与 agent {agent_with_chat} 重复'
+                })
     
     if not issues:
         return [{'status': 'ok', 'message': '配置一致性检查通过'}]
     
     return issues
-
 
 def generate_report(check_results):
     """生成诊断报告"""
@@ -282,8 +290,8 @@ def fix_issues(config, check_results):
     # 修复版本号
     version_check = check_results.get('版本检查', {})
     if isinstance(version_check, dict) and version_check.get('status') == 'warning':
-        config['version'] = '3.6.0'
-        fixed.append('更新版本号为 3.6.0')
+        config['version'] = '3.8.0'
+        fixed.append('更新版本号为 3.8.0')
     
     # 保存修复后的配置
     if fixed:

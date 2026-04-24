@@ -137,12 +137,20 @@ class AgentConfig:
         except ValueError:
             pass
         
-        # 优先级3：如果只有一个 self 配置，自动使用
+        # 优先级3：如果只有一个 self 配置，直接用它
         all_self = cls.get_all_self()
         if len(all_self) == 1:
             agent_name = list(all_self.keys())[0]
             print(f'📝 自动选择唯一配置：{agent_name}')
             return agent_name
+        elif len(all_self) > 1:
+            # 多个配置时给出提示
+            print(f'⚠️  发现 {len(all_self)} 个 self 配置，无法自动选择：')
+            for name, info in all_self.items():
+                cid = info.get('chat_id', '')[:20]
+                print(f'   • {name}: {cid}...')
+            print(f'\n   请使用 --from 指定发送者，例如：')
+            print(f'   python3 feishu_send.py <目标> "消息" --from {list(all_self.keys())[0]} --deliver')
         
         return None
 

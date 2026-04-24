@@ -119,11 +119,13 @@ class AgentConfig:
 
     @classmethod
     def detect_current_agent(cls) -> Optional[str]:
-        # 优先级：AGENT_NAME > OPENCLAW_AGENT_ID > 工作区路径
+        # 优先级1：环境变量
         for env_key in ['AGENT_NAME', 'OPENCLAW_AGENT_ID']:
             val = os.environ.get(env_key)
             if val:
                 return val.lower()
+        
+        # 优先级2：工作区路径匹配
         cwd = os.getcwd()
         workspace_dir = os.path.expanduser('~/.openclaw/workspace')
         try:
@@ -134,6 +136,14 @@ class AgentConfig:
                     return parts[1].lower()
         except ValueError:
             pass
+        
+        # 优先级3：如果只有一个 self 配置，自动使用
+        all_self = cls.get_all_self()
+        if len(all_self) == 1:
+            agent_name = list(all_self.keys())[0]
+            print(f'📝 自动选择唯一配置：{agent_name}')
+            return agent_name
+        
         return None
 
 
@@ -146,16 +156,18 @@ def build_post_content(
     message: str,
     from_agent: str,
     to_agent: str,
-    at_app_id: str = None
+    at_app_id: str = None,
+    actual_sender: str = None
 ) -> Dict[str, Any]:
     """
     构造飞书 post 消息内容（富文本，支持 @）
     
     Args:
         message: 消息正文
-        from_agent: 发送者名称
+        from_agent: 发送者名称（AI Agent 身份）
         to_agent: 目标 Agent 名称
         at_app_id: 要 @ 的 Agent app_id（如 cli_xxx）
+        actual_sender: 实际发送者（人类身份，如 kclaw）
     
     Returns:
         飞书 post 消息格式的 content 字典
@@ -175,11 +187,24 @@ def build_post_content(
     content_blocks.append({"tag": "text", "text": message})
     
     # 添加代理标识（小字）
-    content_blocks.append({"tag": "text", "text": f"\n\n---\n📨 群聊代理发送 | {from_agent} → {to_agent}"})
+    if actual_sender and actual_sender != from_agent:
+        # 有实际人类发送者，显示双身份
+        content_blocks.append({"tag": "text", "text": f"\n\n---\n📨 群聊代理发送 | {actual_sender}（经由 {from_agent}）→ {to_agent}"})
+    else:
+        # 只有 AI Agent 身份
+        content_blocks.append({"tag": "text", "text": f"\n\n---\n📨 群聊代理发送 | {from_agent} → {to_agent}"})
+    
+    # 构建 title
+    if actual_sender and actual_sender != from_agent:
+        # 双身份：显示实际发送者
+        title = f"【代理消息】@{to_agent} 来自 {actual_sender}"
+    else:
+        # 单身份
+        title = f"【代理消息】@{to_agent} 来自 {from_agent}"
     
     return {
         "zh_cn": {
-            "title": f"@{to_agent} 你有新消息",
+            "title": title,
             "content": [content_blocks]
         }
     }
@@ -189,7 +214,8 @@ def build_text_content(
     message: str,
     from_agent: str,
     to_agent: str,
-    my_chat_id: str = None
+    my_chat_id: str = None,
+    actual_sender: str = None
 ) -> str:
     """
     构造纯文本消息内容（私聊用）
@@ -205,17 +231,33 @@ def build_text_content(
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'version': '3.6.0'
     }
+    if actual_sender:
+        metadata['actual_sender'] = actual_sender
     metadata_json = json.dumps(metadata, ensure_ascii=False)
     
-    formatted = (
-        f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】\n\n'
-        f'{message}\n\n'
-        f'---\n'
-        f'实际发送者：{from_agent}\n'
-        f'代理发送者：用户\n'
-        f'元数据：{metadata_json}\n'
-        f'---'
-    )
+    if actual_sender and actual_sender != from_agent:
+        # 有实际人类发送者
+        formatted = (
+            f'📨【{type_label}】【代理】【{actual_sender}（经由 {from_agent}）→{to_agent}】\n\n'
+            f'{message}\n\n'
+            f'---\n'
+            f'实际发送者：{actual_sender}\n'
+            f'代理执行者：{from_agent}\n'
+            f'代理发送者：用户\n'
+            f'元数据：{metadata_json}\n'
+            f'---'
+        )
+    else:
+        # 只有 AI Agent 身份
+        formatted = (
+            f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】\n\n'
+            f'{message}\n\n'
+            f'---\n'
+            f'实际发送者：{from_agent}\n'
+            f'代理发送者：用户\n'
+            f'元数据：{metadata_json}\n'
+            f'---'
+        )
     
     return json.dumps({'text': formatted}, ensure_ascii=False)
 
@@ -224,7 +266,8 @@ def feishu_agent_send(
     to: str,
     message: str,
     from_agent: str = None,
-    chat_type: str = None
+    chat_type: str = None,
+    actual_sender: str = None
 ) -> Dict[str, Any]:
     """
     格式化 Agent 间通信消息
@@ -232,8 +275,9 @@ def feishu_agent_send(
     Args:
         to: 目标 Agent 名称
         message: 消息内容
-        from_agent: 发送者名称（自动检测）
+        from_agent: 发送者名称（AI Agent 身份，自动检测）
         chat_type: 强制指定聊天类型
+        actual_sender: 实际发送者（人类身份，如 kclaw）
 
     Returns:
         包含发送参数的字典
@@ -265,12 +309,12 @@ def feishu_agent_send(
     # 根据聊天类型构造不同消息格式
     if ct == 'group' and to_app_id:
         # 群聊：使用 post 富文本格式，包含 @
-        content_obj = build_post_content(message, from_agent, to, to_app_id)
+        content_obj = build_post_content(message, from_agent, to, to_app_id, actual_sender)
         content = json.dumps(content_obj, ensure_ascii=False)
         msg_type = 'post'
     else:
         # 私聊：使用 text 纯文本格式
-        content = build_text_content(message, from_agent, to, my_chat_id)
+        content = build_text_content(message, from_agent, to, my_chat_id, actual_sender)
         msg_type = 'text'
 
     return {
@@ -280,7 +324,8 @@ def feishu_agent_send(
         'msg_type': msg_type,
         'content': content,
         'formatted_message': content,
-        'to_app_id': to_app_id
+        'to_app_id': to_app_id,
+        'actual_sender': actual_sender
     }
 
 
@@ -288,12 +333,13 @@ def feishu_agent_send_and_deliver(
     to: str,
     message: str,
     from_agent: str = None,
-    chat_type: str = None
+    chat_type: str = None,
+    actual_sender: str = None
 ) -> Dict[str, Any]:
     """
     一站式发送：格式化 + 发送指令
     """
-    result = feishu_agent_send(to, message, from_agent, chat_type)
+    result = feishu_agent_send(to, message, from_agent, chat_type, actual_sender)
     if not result.get('success'):
         return result
 
@@ -302,6 +348,7 @@ def feishu_agent_send_and_deliver(
     msg_type = result.get('msg_type', 'text')
     content = result['content']
     to_app_id = result.get('to_app_id')
+    actual_sender = result.get('actual_sender')
     
     # 构造 feishu_im_user_message 调用指令
     instruction = (
@@ -318,6 +365,11 @@ def feishu_agent_send_and_deliver(
     if to_app_id:
         instruction += (
             f'\n\n注：消息包含 @{to} 的 @ 提醒（app_id: {to_app_id}）'
+        )
+    
+    if actual_sender:
+        instruction += (
+            f'\n实际发送者：{actual_sender}（代理执行者：{from_agent}）'
         )
 
     deliver = {
@@ -337,6 +389,7 @@ def feishu_agent_send_and_deliver(
         'msg_type': msg_type,
         'to': to,
         'from_agent': from_agent,
+        'actual_sender': actual_sender,
         'to_app_id': to_app_id,
     }
     return deliver

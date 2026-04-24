@@ -1,6 +1,6 @@
 # feishu_agent_send - 飞书多 Agent 通信工具
 
-**版本：** 3.6.0  
+**版本：** 3.7.0  
 **定位：** 一个 skill，所有 agent 共用，自动识别身份
 
 ⚠️ **安全声明：** 本 skill 使用 `feishu_im_user_message` 以**用户身份**发送飞书消息。请确保只在你信任的 Agent 之间使用，避免敏感信息泄露。
@@ -31,21 +31,36 @@ python3 feishu_add.py ying oc_xxx
 **群聊 @ 功能需要先在群里采集各 Agent 的 app_id：**
 
 ```bash
-# 步骤 1：在群里 @ 各 Agent 发一条消息（确保机器人在群里）
+# 方式一：全自动扫描（推荐）
+python3 feishu_scan_group.py oc_xxx --auto
 
+# 方式二：手动导入
+# 步骤 1：在群里 @ 各 Agent 发一条消息（确保机器人在群里）
 # 步骤 2：获取群成员列表
 feishu_chat_members(
     chat_id='oc_xxx',
     page_size=200
 )
-
 # 步骤 3：保存结果到文件，然后导入
-python3 feishu_scan_group.py oc_xxx --import /tmp/group_members.json
+python3 feishu_scan_group.py oc_xxx --manual /tmp/group_members.json
 ```
 
 采集完成后，后续群聊发送会自动使用 post 富文本格式并 @ 目标 Agent。
 
-### 4. 发送消息
+### 4. 配置诊断
+
+```bash
+# 检查所有配置
+python3 feishu_status.py
+
+# 检查指定 Agent
+python3 feishu_status.py --check kfj
+
+# 检查并自动修复
+python3 feishu_status.py --fix
+```
+
+### 5. 发送消息
 
 ```bash
 # 一站式发送（推荐）：输出 feishu_im_user_message 调用指令
@@ -60,11 +75,202 @@ python3 feishu_send.py ying "你好"
 | 工具 | 用途 | 推荐 |
 |------|------|------|
 | `feishu_send.py --deliver` | **一站式发送**（输出调用指令） | ⭐⭐⭐ |
+| `feishu_send.py --execute` | **直接执行发送**（尝试自动调用API） | ⭐⭐⭐ |
+| `feishu_status.py` | **配置诊断**（检查配置健康状态） | ⭐⭐⭐ |
 | `feishu_send.py` | 预览 JSON（调试用） | ⭐ |
 | `feishu_set_self.py` | 设置自己的发送者信息 | 仅首次 |
 | `feishu_add.py` | 添加其他 Agent | 配置时 |
 | `feishu_scan_group.py` | 扫描群成员采集 app_id | 群初始化 |
 | `feishu_who.py` | 查看所有 Agent | 查询 |
+
+## ✨ v3.7.0 改进
+
+### 1. 单 self 自动选择
+当配置文件中只有一个 self 配置时，`detect_current_agent()` 自动选择该配置，无需每次指定 `--from`：
+```bash
+# 之前：必须指定 --from
+python3 feishu_send.py ying "你好" --from kfj --deliver
+
+# 现在：自动检测
+python3 feishu_send.py ying "你好" --deliver
+# 输出：📝 自动检测发送者：kfj
+```
+
+### 2. --execute 直接执行模式
+新增 `--execute` 参数，尝试直接调用 API 发送消息，无需手动复制指令：
+```bash
+python3 feishu_send.py ying "你好" --execute
+# 输出：🚀 执行发送... ✅ 发送执行完成
+```
+
+### 3. feishu_status.py 配置诊断工具
+新增诊断工具，快速检查配置状态：
+```bash
+# 检查所有配置
+python3 feishu_status.py
+
+# 检查指定 Agent
+python3 feishu_status.py --check kfj
+
+# 检查并自动修复
+python3 feishu_status.py --fix
+```
+
+**诊断内容**：
+- 版本号一致性检查
+- Self 配置完整性
+- Agents 配置完整性
+- 配置一致性（重复 chat_id 检测）
+
+### 4. 配置防呆检查
+`feishu_set_self.py` 和 `feishu_add.py` 添加冲突检测：
+- 检测 self 和 agent chat_id 重复（容易搞混自己和对方）
+- 检测私聊 chat_id 重复（应该是唯一的）
+- 群聊重复正常，不警告
+
+### 5. 消息来源标识优化
+群聊消息 title 格式统一为：
+```
+【代理消息】@目标 来自 发送者
+```
+
+示例：
+```
+【代理消息】@kfj 来自 kclaw
+```
+
+### 6. --actual-sender 双身份支持
+支持区分实际发送者（人类）和代理执行者（AI）：
+```bash
+python3 feishu_send.py kfj "消息" --from kfj --actual-sender kclaw --deliver
+# 显示：kclaw（经由 kfj）→ kfj
+```
+
+## ✨ v3.7.0 改进
+
+### 1. 单 self 自动选择
+当配置文件中只有一个 self 配置时，`detect_current_agent()` 自动选择该配置，无需每次指定 `--from`：
+```bash
+# 之前：必须指定 --from
+python3 feishu_send.py ying "你好" --from kfj --deliver
+
+# 现在：自动检测
+python3 feishu_send.py ying "你好" --deliver
+# 输出：📝 自动检测发送者：kfj
+```
+
+### 2. --execute 直接执行模式
+新增 `--execute` 参数，尝试直接调用 API 发送消息，无需手动复制指令：
+```bash
+python3 feishu_send.py ying "你好" --execute
+# 输出：🚀 执行发送... ✅ 发送执行完成
+```
+
+### 3. feishu_status.py 配置诊断工具
+新增诊断工具，快速检查配置状态：
+```bash
+# 检查所有配置
+python3 feishu_status.py
+
+# 检查指定 Agent
+python3 feishu_status.py --check kfj
+
+# 检查并自动修复
+python3 feishu_status.py --fix
+```
+
+**诊断内容**：
+- 版本号一致性检查
+- Self 配置完整性
+- Agents 配置完整性
+- 配置一致性（重复 chat_id 检测）
+
+### 4. 配置防呆检查
+`feishu_set_self.py` 和 `feishu_add.py` 添加冲突检测：
+- 检测 self 和 agent chat_id 重复（容易搞混自己和对方）
+- 检测私聊 chat_id 重复（应该是唯一的）
+- 群聊重复正常，不警告
+
+### 5. 消息来源标识优化
+群聊消息 title 格式统一为：
+```
+【代理消息】@目标 来自 发送者
+```
+
+示例：
+```
+【代理消息】@kfj 来自 kclaw
+```
+
+### 6. --actual-sender 双身份支持
+支持区分实际发送者（人类）和代理执行者（AI）：
+```bash
+python3 feishu_send.py kfj "消息" --from kfj --actual-sender kclaw --deliver
+# 显示：kclaw（经由 kfj）→ kfj
+```
+
+## ✨ v3.7.0 改进
+
+### 1. 单 self 自动选择
+当配置文件中只有一个 self 配置时，`detect_current_agent()` 自动选择该配置，无需每次指定 `--from`：
+```bash
+# 之前：必须指定 --from
+python3 feishu_send.py ying "你好" --from kfj --deliver
+
+# 现在：自动检测
+python3 feishu_send.py ying "你好" --deliver
+# 输出：📝 自动检测发送者：kfj
+```
+
+### 2. --execute 直接执行模式
+新增 `--execute` 参数，尝试直接调用 API 发送消息，无需手动复制指令：
+```bash
+python3 feishu_send.py ying "你好" --execute
+# 输出：🚀 执行发送... ✅ 发送执行完成
+```
+
+### 3. feishu_status.py 配置诊断工具
+新增诊断工具，快速检查配置状态：
+```bash
+# 检查所有配置
+python3 feishu_status.py
+
+# 检查指定 Agent
+python3 feishu_status.py --check kfj
+
+# 检查并自动修复
+python3 feishu_status.py --fix
+```
+
+**诊断内容**：
+- 版本号一致性检查
+- Self 配置完整性
+- Agents 配置完整性
+- 配置一致性（重复 chat_id 检测）
+
+### 4. 配置防呆检查
+`feishu_set_self.py` 和 `feishu_add.py` 添加冲突检测：
+- 检测 self 和 agent chat_id 重复（容易搞混自己和对方）
+- 检测私聊 chat_id 重复（应该是唯一的）
+- 群聊重复正常，不警告
+
+### 5. 消息来源标识优化
+群聊消息 title 格式统一为：
+```
+【代理消息】@目标 来自 发送者
+```
+
+示例：
+```
+【代理消息】@kfj 来自 kclaw
+```
+
+### 6. --actual-sender 双身份支持
+支持区分实际发送者（人类）和代理执行者（AI）：
+```bash
+python3 feishu_send.py kfj "消息" --from kfj --actual-sender kclaw --deliver
+# 显示：kclaw（经由 kfj）→ kfj
+```
 
 ## ✨ v3.6.0 改进
 
@@ -375,6 +581,7 @@ A: 默认选择私聊，如需发群聊加 `--chat-type group`
 
 | 版本 | 功能 |
 |------|------|
+| v3.7.0 | 单self自动选择、--execute直接执行、feishu_status.py诊断工具、配置防呆检查、消息来源标识优化、--actual-sender双身份支持 |
 | v3.6.0 | 合并 v3.5.0 群聊 @ 功能与 v3.1.0 代码改进：JSON 元数据、代码精简、Bug 修复 |
 | v3.5.0 | 群聊 post 富文本格式、@ 提醒功能、群初始化采集 app_id、feishu_scan_group.py 工具 |
 | v3.4.0 | 删除不可用--send、修复get_agent_info多场景判断、修复feishu_add升级逻辑、统一代理发送者字段 |

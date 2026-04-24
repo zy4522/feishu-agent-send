@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_status.py - 飞书 Agent 配置诊断工具 v3.8.0
+feishu_status.py - 飞书 Agent 配置诊断工具 v3.9.0
 
 用法：
   python3 feishu_status.py [选项]
@@ -159,7 +159,7 @@ def check_agents_config(config):
 
 
 def check_config_consistency(config):
-    """检查配置一致性（v3.8.0 修复误报）"""
+    """检查配置一致性（v3.9.0 修复误报）"""
     issues = []
     
     # 群聊 chat_id 允许多个 Agent 使用（正常），只检查私聊重复
@@ -194,7 +194,7 @@ def check_config_consistency(config):
                             else:
                                 p2p_chat_ids[cid] = f'{agent_name} (p2p)'
     
-    # 检查 self 配置是否和 agents 配置冲突（v3.8.0 修复误报）
+    # 检查 self 配置是否和 agents 配置冲突（v3.9.0 修复误报）
     self_by_agent = config.get('self_by_agent', {})
     for self_name, self_info in self_by_agent.items():
         self_chat_id = self_info.get('chat_id', '')

@@ -1,7 +1,11 @@
 """
-feishu_agent_send - 飞书多 Agent 通信工具 v3.8.0
+feishu_agent_send - 飞书多 Agent 通信工具 v3.9.0
 
 核心原则：一个 skill，所有 agent 共用，自动识别身份
+
+v3.9.0 更新：
+- --execute 模式真正一站式发送：解密本地 UAT → 自动续期 → 直接调飞书 IM API
+- 新增 feishu_direct_send.py 独立发送工具
 
 v3.8.0 更新：
 - 新增 parse_agent_message() 自动解析接收消息

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_send.py - 发送消息给飞书 Agent v3.8.0
+feishu_send.py - 发送消息给飞书 Agent v3.9.0
 
 用法：
   python3 feishu_send.py <目标Agent> <消息内容> [选项]
@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from feishu_agent_send import AgentConfig, feishu_agent_send_and_deliver, list_known_agents
+from feishu_direct_send import get_valid_token, send_message as direct_api_send, build_post_content as build_post_content_direct
 
 
 def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_sender, deliver_mode, execute_mode):
@@ -47,7 +48,7 @@ def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_send
             'success': False,
             'error': f"找不到 Agent '{to_agent}'",
             'available_agents': list_known_agents()[:10],
-            'v3.8.0_help': f'请先添加：python3 feishu_add.py {to_agent} oc_xxx'
+            'v3.9.0_help': f'请先添加：python3 feishu_add.py {to_agent} oc_xxx'
         }
     
     chat_id = agent_info.get('chat_id')
@@ -110,10 +111,46 @@ def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_send
             if actual_sender:
                 print(f"   👤 实际发送者：{actual_sender}（代理执行者：{from_agent}）")
             
-            print(f"\n⚠️ --execute 模式仅生成指令，不会真正发送")
-            print(f"📋 请使用 --deliver 并手动执行输出指令")
-            print(f"\n📋 发送指令：")
-            print(result.get('instruction', ''))
+            # 🚀 v3.9.0: 真正的一站式发送 —— 直接调飞书 API
+            print(f"\n🚀 正在直接调用飞书 API 发送消息...")
+            
+            access_token = get_valid_token(from_agent)
+            if not access_token:
+                print(f"\n❌ 无法获取有效的 Access Token")
+                print(f"   请在飞书中重新授权该 Agent")
+                print(f"\n📋 备选方案：使用 --deliver 手动执行发送指令：")
+                print(result.get('instruction', ''))
+                return result
+            
+            receive_id_type = 'chat_id' if ct == 'group' else 'open_id'
+            receive_id = chat_id
+            msg_type = result.get('msg_type', 'text')
+            # content 在 send_params 里，已经是 JSON 字符串
+            content = send_params.get('content', '')
+            if not content:
+                content = result.get('content', '')
+            if isinstance(content, dict):
+                content = json.dumps(content, ensure_ascii=False)
+            
+            api_result = direct_api_send(
+                access_token=access_token,
+                receive_id_type=receive_id_type,
+                receive_id=receive_id,
+                msg_type=msg_type,
+                content=content,
+            )
+            
+            if api_result.get('success'):
+                print(f"✅ 消息发送成功！")
+                print(f"   消息ID: {api_result.get('message_id')}")
+                print(f"   目标: {to_agent} ({receive_id})")
+                print(f"   时间: {api_result.get('create_time', '')}")
+            else:
+                print(f"❌ 发送失败: {api_result.get('error')}")
+                print(f"\n📋 备选方案：使用 --deliver 手动执行发送指令：")
+                print(result.get('instruction', ''))
+            
+            return {'success': api_result.get('success', False), 'api_result': api_result}
         else:
             return result
     else:
@@ -127,7 +164,7 @@ def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_send
             'from_agent': from_agent,
             'actual_sender': actual_sender,
             'to_app_id': to_app_id,
-            'v3.8.0_hint': '使用 --deliver 获取完整发送指令，使用 --execute 直接执行'
+            'v3.9.0_hint': '使用 --deliver 获取完整发送指令，使用 --execute 直接执行'
         }
     
     return result
@@ -141,7 +178,7 @@ def main():
             'success': False,
             'error': '参数不足',
             'usage': 'python3 feishu_send.py <目标Agent> <消息> [--from 发送者] [--chat-type p2p|group] [--actual-sender 实际发送者] [--deliver|--execute]',
-            'v3.8.0': '支持批量发送：python3 feishu_send.py "Agent1,Agent2" "消息" --deliver',
+            'v3.9.0': '支持批量发送：python3 feishu_send.py "Agent1,Agent2" "消息" --deliver',
             'v3.6.0': '推荐使用 --deliver 输出指令，或 --execute 直接执行'
         }, ensure_ascii=False))
         sys.exit(1)
@@ -204,7 +241,7 @@ def main():
             'success': False,
             'error': '缺少发送者信息',
             'hint': hint,
-            'v3.8.0_help': '首次使用请运行：python3 feishu_set_self.py <你的Agent名> <你的chat_id>'
+            'v3.9.0_help': '首次使用请运行：python3 feishu_set_self.py <你的Agent名> <你的chat_id>'
         }, ensure_ascii=False))
         sys.exit(1)
     

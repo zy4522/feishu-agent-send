@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_execute.py - 生成飞书消息发送指令 v3.8.0
+feishu_execute.py - 生成飞书消息发送指令 v3.9.0
 
 用法：
   # 方式一：直接传 JSON（适合脚本调用）

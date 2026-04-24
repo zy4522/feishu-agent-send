@@ -6,9 +6,11 @@ feishu_send.py - 发送消息给飞书 Agent v3.6.0
   python3 feishu_send.py <目标Agent> <消息内容> [选项]
 
 选项：
-  --from            发送者名称（自动检测）
+  --from            发送者名称（自动检测，单配置时可选）
   --chat-type       p2p 或 group，强制指定类型
+  --actual-sender   实际发送者（人类身份，与AI代理区分）
   --deliver         输出调用指令（推荐）
+  --execute         尝试直接执行发送（需要OpenClaw环境）
 
 示例：
   # 预览模式（输出 JSON，不调用发送）
@@ -16,6 +18,12 @@ feishu_send.py - 发送消息给飞书 Agent v3.6.0
   
   # 一站式发送（输出 feishu_im_user_message 调用指令）
   python3 feishu_send.py ying "你好" --deliver
+  
+  # 直接执行（尝试自动调用API）
+  python3 feishu_send.py ying "你好" --execute
+  
+  # 代理发送（人类经由AI发送）
+  python3 feishu_send.py kfj "消息" --from kfj --actual-sender kclaw --deliver
 """
 
 import sys
@@ -35,8 +43,8 @@ def main():
         print(json.dumps({
             'success': False,
             'error': '参数不足',
-            'usage': 'python3 feishu_send.py <目标Agent> <消息> [--from 发送者] [--chat-type p2p|group] [--deliver]',
-            'v3.6.0': '推荐使用 --deliver 一站式发送'
+            'usage': 'python3 feishu_send.py <目标Agent> <消息> [--from 发送者] [--chat-type p2p|group] [--actual-sender 实际发送者] [--deliver|--execute]',
+            'v3.6.0': '推荐使用 --deliver 输出指令，或 --execute 直接执行'
         }, ensure_ascii=False))
         sys.exit(1)
     
@@ -46,6 +54,8 @@ def main():
     from_agent = None
     chat_type_override = None
     deliver_mode = False
+    execute_mode = False
+    actual_sender = None
     
     i = 2
     while i < len(args):
@@ -58,6 +68,12 @@ def main():
         elif args[i] == '--deliver':
             deliver_mode = True
             i += 1
+        elif args[i] == '--execute':
+            execute_mode = True
+            i += 1
+        elif args[i] == '--actual-sender' and i + 1 < len(args):
+            actual_sender = args[i + 1]
+            i += 2
         else:
             i += 1
     
@@ -140,7 +156,7 @@ def main():
     if ct == 'group' and to_app_id:
         # 群聊：使用 post 富文本格式
         from feishu_agent_send import build_post_content
-        content_obj = build_post_content(message, from_agent, to_agent, to_app_id)
+        content_obj = build_post_content(message, from_agent, to_agent, to_app_id, actual_sender)
         content = json.dumps(content_obj, ensure_ascii=False)
         msg_type = 'post'
         preview = content
@@ -157,17 +173,31 @@ def main():
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'version': '3.6.0'
         }
+        if actual_sender:
+            metadata['actual_sender'] = actual_sender
         metadata_json = json.dumps(metadata, ensure_ascii=False)
         
-        formatted = (
-            f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】\n\n'
-            f'{message}\n\n'
-            f'---\n'
-            f'实际发送者：{from_agent}\n'
-            f'代理发送者：用户\n'
-            f'元数据：{metadata_json}\n'
-            f'---'
-        )
+        if actual_sender and actual_sender != from_agent:
+            formatted = (
+                f'📨【{type_label}】【代理】【{actual_sender}（经由 {from_agent}）→{to_agent}】\n\n'
+                f'{message}\n\n'
+                f'---\n'
+                f'实际发送者：{actual_sender}\n'
+                f'代理执行者：{from_agent}\n'
+                f'代理发送者：用户\n'
+                f'元数据：{metadata_json}\n'
+                f'---'
+            )
+        else:
+            formatted = (
+                f'📨【{type_label}】【代理】【{from_agent}→{to_agent}】\n\n'
+                f'{message}\n\n'
+                f'---\n'
+                f'实际发送者：{from_agent}\n'
+                f'代理发送者：用户\n'
+                f'元数据：{metadata_json}\n'
+                f'---'
+            )
         content = json.dumps({'text': formatted}, ensure_ascii=False)
         msg_type = 'text'
         preview = formatted
@@ -182,7 +212,7 @@ def main():
     
     if deliver_mode:
         # v3.6.0: 一站式发送 - 调用 feishu_agent_send_and_deliver
-        result = feishu_agent_send_and_deliver(to_agent, message, from_agent, chat_type_override)
+        result = feishu_agent_send_and_deliver(to_agent, message, from_agent, chat_type_override, actual_sender)
         if result.get('success'):
             print(f"\n✅ 消息已准备好，发送给 {to_agent}（{'群聊' if ct == 'group' else '私聊'}）")
             if multi_scene:
@@ -190,7 +220,44 @@ def main():
             if ct == 'group':
                 if to_app_id:
                     print(f"   📎 包含 @{to_agent} 的 @ 提醒")
+            if actual_sender:
+                print(f"   👤 实际发送者：{actual_sender}（代理执行者：{from_agent}）")
             print(f"\n📋 {result.get('instruction', '')}")
+        else:
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(1)
+    elif execute_mode:
+        # v3.6.0: 直接执行模式
+        result = feishu_agent_send_and_deliver(to_agent, message, from_agent, chat_type_override, actual_sender)
+        if result.get('success'):
+            send_params = result.get('send_params', {})
+            print(f"\n✅ 消息已准备好，发送给 {to_agent}（{'群聊' if ct == 'group' else '私聊'}）")
+            if multi_scene:
+                print(f"   注意：该 Agent 有多个场景，当前选择 {'群聊' if ct == 'group' else '私聊'}")
+            if ct == 'group':
+                if to_app_id:
+                    print(f"   📎 包含 @{to_agent} 的 @ 提醒")
+            if actual_sender:
+                print(f"   👤 实际发送者：{actual_sender}（代理执行者：{from_agent}）")
+            
+            print(f"\n🚀 执行发送...")
+            # 调用 feishu_execute.py 执行
+            import subprocess
+            params_json = json.dumps(send_params, ensure_ascii=False)
+            try:
+                exec_result = subprocess.run(
+                    [sys.executable, os.path.join(os.path.dirname(__file__), 'feishu_execute.py'), params_json],
+                    capture_output=True, text=True, timeout=30
+                )
+                if exec_result.returncode == 0:
+                    print("✅ 发送执行完成")
+                    print(exec_result.stdout)
+                else:
+                    print(f"⚠️ 执行返回错误: {exec_result.stderr}")
+            except Exception as e:
+                print(f"⚠️ 执行失败: {str(e)}")
+                print(f"\n📋 请手动执行以下指令：")
+                print(result.get('instruction', ''))
         else:
             print(json.dumps(result, ensure_ascii=False))
             sys.exit(1)
@@ -205,6 +272,7 @@ def main():
             'msg_type': msg_type,
             'to': to_agent,
             'from_agent': from_agent,
+            'actual_sender': actual_sender,
             'to_app_id': to_app_id,
             'v3.6.0_hint': '使用 --deliver 获取完整发送指令'
         }

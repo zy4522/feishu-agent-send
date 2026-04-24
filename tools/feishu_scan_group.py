@@ -205,14 +205,20 @@ def main():
         print(json.dumps({
             'success': False,
             'error': '参数不足',
-            'usage': 'python3 feishu_scan_group.py <群chat_id>',
-            'example': 'python3 feishu_scan_group.py oc_xxx'
+            'usage': 'python3 feishu_scan_group.py <群chat_id> [--auto]',
+            'example': 'python3 feishu_scan_group.py oc_xxx',
+            'modes': {
+                'auto': '全自动模式（默认）：自动调用API获取消息历史',
+                'manual': '手动模式：从已保存的JSON文件导入消息'
+            }
         }, ensure_ascii=False))
         sys.exit(1)
     
     chat_id = args[0]
+    auto_mode = '--auto' in args
     
-    print(f"🔍 开始全自动扫描群 {chat_id} 的消息历史...")
+    print(f"🔍 开始扫描群 {chat_id} 的消息历史...")
+    print(f"   模式: {'全自动 (--auto)' if auto_mode else '自动检测'}")
     print()
     
     # 检查是否有手动导入模式
@@ -249,7 +255,7 @@ def main():
             'unmatched': unmatched
         }
     else:
-        # 全自动模式
+        # 全自动模式（默认）
         result = scan_from_history(chat_id)
     
     # 输出结果

@@ -59,14 +59,15 @@ def execute_feishu_send(send_params_json):
     }
     
     # 生成 feishu_im_user_message 调用格式
-    content_escaped = params['content'].replace("'", "'\"'\"'")
+    # 使用 json.dumps() 安全转义，防止注入攻击（修复命令注入漏洞）
+    content_escaped = json.dumps(params['content'])
     
     instruction = f"""feishu_im_user_message(
-    action='{params['action']}',
-    receive_id_type='{params['receive_id_type']}',
-    receive_id='{params['receive_id']}',
-    msg_type='{params['msg_type']}',
-    content='{content_escaped}'
+    action={json.dumps(params['action'])},
+    receive_id_type={json.dumps(params['receive_id_type'])},
+    receive_id={json.dumps(params['receive_id'])},
+    msg_type={json.dumps(params['msg_type'])},
+    content={content_escaped}
 )"""
     
     return {

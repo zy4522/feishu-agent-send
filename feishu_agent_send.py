@@ -39,8 +39,9 @@ class AgentConfig:
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                import warnings
+                warnings.warn(f'配置文件读取失败，使用默认配置: {e}')
         return {"version": "3.9.0", "agents": {}, "self_by_agent": {}}
 
     @classmethod

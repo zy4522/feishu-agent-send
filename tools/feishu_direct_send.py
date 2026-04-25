@@ -261,6 +261,11 @@ def _save_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> bool:
 
 def get_valid_token(agent_name: str = 'kfj') -> Optional[str]:
     """获取有效的 Access Token，必要时自动续期"""
+    # 校验 agent_name 格式，防止路径遍历（P1 修复）
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]{1,32}$', str(agent_name)):
+        print(f"⚠️ agent_name 格式不合法: {agent_name}", file=sys.stderr)
+        return None
     token_data = _decrypt_token(agent_name)
     if not token_data:
         return None

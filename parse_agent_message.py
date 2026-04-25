@@ -75,19 +75,18 @@ def parse_agent_message(raw_content):
         if '【代理】' in text and '元数据：' in text:
             result['is_agent_message'] = True
             
-            # 提取元数据
+            # 用正则提取元数据 JSON，比字符串位置匹配更可靠（加固修复）
             try:
-                metadata_start = text.find('元数据：') + 4
-                metadata_end = text.find('\n---', metadata_start)
-                if metadata_end == -1:
-                    metadata_end = len(text)
-                
-                metadata_json = text[metadata_start:metadata_end].strip()
-                metadata = json.loads(metadata_json)
-                result['from_agent'] = metadata.get('from_agent')
-                result['to_agent'] = metadata.get('to_agent')
-            except:
-                pass
+                import re
+                # 匹配 '元数据：' 后第一个 JSON 对象
+                match = re.search(r'元数据：\s*(\{[^{}]*\})', text)
+                if match:
+                    metadata = json.loads(match.group(1))
+                    result['from_agent'] = metadata.get('from_agent')
+                    result['to_agent'] = metadata.get('to_agent')
+            except Exception as e:
+                import sys
+                print(f'⚠️ 解析元数据失败: {e}', file=sys.stderr)
             
             # 提取消息正文
             lines = text.split('\n')

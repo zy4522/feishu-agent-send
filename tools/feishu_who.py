@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from feishu_agent_send import AgentConfig
 
+try:
+    from _version import __version__
+except ImportError:
+    __version__ = "3.9.0"
+
 
 def main():
     config = AgentConfig.load()
@@ -20,7 +25,7 @@ def main():
     self_by_agent = config.get('self_by_agent', {})
     
     result = {
-        'version': config.get('version', '3.1.0'),
+        'version': config.get('version', __version__),
         'total': len(agents),
         'agents': {}
     }

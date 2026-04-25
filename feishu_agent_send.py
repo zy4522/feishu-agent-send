@@ -24,6 +24,11 @@ import os
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 
+try:
+    from _version import __version__
+except ImportError:
+    __version__ = "3.9.0"
+
 
 class AgentConfig:
     """本地 Agent 配置管理"""
@@ -42,7 +47,7 @@ class AgentConfig:
             except Exception as e:
                 import warnings
                 warnings.warn(f'配置文件读取失败，使用默认配置: {e}')
-        return {"version": "3.9.0", "agents": {}, "self_by_agent": {}}
+        return {"version": __version__, "agents": {}, "self_by_agent": {}}
 
     @classmethod
     def save(cls, data: Dict[str, Any]):
@@ -246,7 +251,7 @@ def build_text_content(
         'from_chat_id': my_chat_id,
         'chat_type': 'p2p',
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'version': '3.9.0'
+        'version': __version__
     }
     if actual_sender:
         metadata['actual_sender'] = actual_sender

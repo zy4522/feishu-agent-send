@@ -55,10 +55,14 @@ def _decrypt_token(agent_name: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # 优先尝试 agent 自己的 token，fallback 到 default
-        enc_files = [
-            os.path.join(UAT_DIR, f'cli_a93af13bf5f8dbcb_ou_a4484a2d373b28bf1baf7f114352041e.enc'),
-            os.path.join(UAT_DIR, 'cli_a96a42f50b781bd9_ou_c3d09f8f422d30553eced152d3201c6a.enc'),
-        ]
+        # 动态扫描 UAT_DIR 下所有 .enc 文件，不再硬编码路径
+        enc_files = []
+        if os.path.exists(UAT_DIR):
+            enc_files = [
+                os.path.join(UAT_DIR, f)
+                for f in os.listdir(UAT_DIR)
+                if f.endswith('.enc')
+            ]
         
         # 也尝试从 self_by_agent 配置中查找
         try:
@@ -120,10 +124,28 @@ def _decrypt_token(agent_name: str) -> Optional[Dict[str, Any]]:
 # Token 续期模块
 # ============================================================================
 
-APP_CREDENTIALS = {
-    'cli_a93af13bf5f8dbcb': 'QPMnrjoyP8PwNK5EQRuBagb43ED32sDH',  # kfj
-    'cli_a96a42f50b781bd9': 'main_app_secret',  # main (占位)
-}
+OPENCLAW_CONFIG = '/root/.openclaw/openclaw.json'
+
+
+def get_app_secret_from_openclaw(app_id: str) -> Optional[str]:
+    """从 openclaw.json 动态读取 app_secret，避免硬编码"""
+    try:
+        if not os.path.exists(OPENCLAW_CONFIG):
+            return None
+        with open(OPENCLAW_CONFIG, 'r') as f:
+            oc = json.load(f)
+        accounts = oc.get('accounts', {})
+        for acc_id, acc in accounts.items():
+            plugins = acc.get('plugins', [])
+            for plugin in plugins:
+                if plugin.get('id') == 'openclaw-lark':
+                    instances = plugin.get('instances', [])
+                    for inst in instances:
+                        if inst.get('appId') == app_id:
+                            return inst.get('appSecret')
+    except Exception:
+        pass
+    return None
 
 REFRESH_TOKEN_URL = 'https://open.feishu.cn/open-apis/authen/v2/oauth/token'
 
@@ -148,26 +170,7 @@ def _refresh_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> Optio
     if not app_id or not refresh_token:
         return None
     
-    app_secret = APP_CREDENTIALS.get(app_id)
-    if not app_secret:
-        # 尝试从 openclaw.json 读取
-        try:
-            oc_config = '/root/.openclaw/openclaw.json'
-            if os.path.exists(oc_config):
-                with open(oc_config, 'r') as f:
-                    oc = json.load(f)
-                accounts = oc.get('accounts', {})
-                for acc_id, acc in accounts.items():
-                    plugins = acc.get('plugins', [])
-                    for plugin in plugins:
-                        if plugin.get('id') == 'openclaw-lark':
-                            instances = plugin.get('instances', [])
-                            for inst in instances:
-                                if inst.get('appId') == app_id:
-                                    app_secret = inst.get('appSecret')
-                                    break
-        except Exception:
-            pass
+    app_secret = get_app_secret_from_openclaw(app_id)
     
     if not app_secret:
         print(f"⚠️ 找不到 app_id={app_id} 的 appSecret", file=sys.stderr)

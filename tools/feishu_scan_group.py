@@ -26,22 +26,8 @@ from feishu_agent_send import AgentConfig, list_known_agents
 
 
 def get_chat_messages(chat_id, limit=100):
-    """获取群消息历史，适配 OpenClaw 环境"""
-    # 方式1：直接导入工具（如果在 OpenClaw 环境中）
-    try:
-        # 尝试通过 OpenClaw 工具调用
-        import openclaw
-        # 使用 feishu_im_user_get_messages 工具
-        result = openclaw.tools.feishu_im_user_get_messages(
-            chat_id=chat_id,
-            page_size=limit,
-            relative_time='last_7_days'
-        )
-        return result.get('messages', [])
-    except (ImportError, AttributeError):
-        pass
-    
-    # 方式2：子进程调用 openclaw CLI
+    """获取群消息历史，通过飞书 API 直接调用"""
+    # 方式1：子进程调用 openclaw CLI
     try:
         cmd = [
             'openclaw', 'run', 'feishu_im_user_get_messages',
@@ -56,7 +42,7 @@ def get_chat_messages(chat_id, limit=100):
     except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
         pass
     
-    # 方式3：提示用户手动执行
+    # 方式2：提示用户手动执行（fallback）
     return None
 
 

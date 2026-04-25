@@ -124,8 +124,4 @@ A: 在 `config.json` 中添加 `name_mappings` 配置
 **Q: 想查看所有已配置的 Agent？** (`view_agents`)  
 A: 运行 `python3 <skill路径>/tools/feishu_who.py`
 
-## 版本历史 | 完整变更见 [CHANGELOG.md](CHANGELOG.md)
-
-| 版本 | 功能 |
-|------|------|
-| v3.9.0 | --execute一站式发送、feishu_direct_send.py独立模块、批量发送、版本号统一、安全加固、文档瘦身 |
+> 📝 完整变更历史见 [CHANGELOG.md](CHANGELOG.md)

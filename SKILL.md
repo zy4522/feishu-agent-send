@@ -121,6 +121,9 @@ A: 默认选私聊，发群聊加 `--chat-type group`
 **Q: 扫描时显示"未匹配的机器人"？** (`unmatched_bot`)  
 A: 在 `config.json` 中添加 `name_mappings` 配置
 
+**Q: 想查看所有已配置的 Agent？** (`view_agents`)  
+A: 运行 `python3 <skill路径>/tools/feishu_who.py`
+
 ## 版本历史 | 完整变更见 [CHANGELOG.md](CHANGELOG.md)
 
 | 版本 | 功能 |

@@ -521,3 +521,4 @@ A: 默认选择私聊，如需发群聊加 `--chat-type group`
 | v3.2.0 | main路径检测、消息格式规范、openclaw.json绑定检查、移除死代码 |
 | v3.0.1 | 群消息延迟发送、移除真实chat_id |
 | v3.0.0 | --deliver一站式发送、多场景提示、用户语言错误、chat_type验证 |
+

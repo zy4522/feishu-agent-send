@@ -135,7 +135,7 @@ def _is_token_expired(token_data: Dict[str, Any]) -> bool:
     return now >= expires_at - 300000  # 5 分钟提前量
 
 
-def _refresh_token(token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _refresh_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> Optional[Dict[str, Any]]:
     """
     使用 Refresh Token 获取新的 Access Token
     
@@ -207,8 +207,8 @@ def _refresh_token(token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             'scope': result['data'].get('scope', token_data.get('scope', '')),
         }
         
-        # 写回加密存储
-        _save_token(new_token)
+        # 写回加密存储（使用 agent_name 确保写到正确的文件）
+        _save_token(new_token, agent_name)
         
         return new_token
     except urllib.error.HTTPError as e:
@@ -219,7 +219,7 @@ def _refresh_token(token_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _save_token(token_data: Dict[str, Any]) -> bool:
+def _save_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> bool:
     """保存加密后的 token 到本地"""
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -239,7 +239,12 @@ def _save_token(token_data: Dict[str, Any]) -> bool:
         # 存储格式: IV(12) + Tag(16) + Ciphertext
         enc_data = iv + tag + ciphertext
         
-        enc_path = os.path.join(UAT_DIR, 'cli_a93af13bf5f8dbcb_ou_a4484a2d373b28bf1baf7f114352041e.enc')
+        # 根据 agent_name 动态生成文件名，避免硬编码
+        app_id = token_data.get('appId', 'cli_a93af13bf5f8dbcb')
+        safe_name = app_id + '_ou_a4484a2d373b28bf1baf7f114352041e'
+        safe_name = safe_name.replace('-', '_').replace('.', '_')
+        enc_path = os.path.join(UAT_DIR, safe_name + '.enc')
+        
         os.makedirs(UAT_DIR, exist_ok=True)
         with open(enc_path, 'wb') as f:
             f.write(enc_data)

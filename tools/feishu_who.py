@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_who.py - 查看所有 Agent 信息 v3.1.0
+feishu_who.py - 查看所有 Agent 信息 v3.9.0
 
 输出格式：统一 JSON
 """

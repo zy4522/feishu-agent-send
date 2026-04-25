@@ -291,7 +291,7 @@ def fix_issues(config, check_results):
     version_check = check_results.get('版本检查', {})
     if isinstance(version_check, dict) and version_check.get('status') == 'warning':
         config['version'] = '3.9.0'
-        fixed.append('更新版本号为 3.8.0')
+        fixed.append('更新版本号为 3.9.0')
     
     # 保存修复后的配置
     if fixed:

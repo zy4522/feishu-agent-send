@@ -215,10 +215,9 @@ def main():
         sys.exit(1)
     
     chat_id = args[0]
-    auto_mode = '--auto' in args
     
     print(f"🔍 开始扫描群 {chat_id} 的消息历史...")
-    print(f"   模式: {'全自动 (--auto)' if auto_mode else '自动检测'}")
+    print(f"   模式: 自动检测（--auto 参数已废弃，默认即为自动模式）")
     print()
     
     # 检查是否有手动导入模式

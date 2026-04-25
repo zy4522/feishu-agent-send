@@ -120,3 +120,9 @@ A: 默认选私聊，发群聊加 `--chat-type group`
 
 **Q: 扫描时显示"未匹配的机器人"？** (`unmatched_bot`)  
 A: 在 `config.json` 中添加 `name_mappings` 配置
+
+## 版本历史 | 完整变更见 [CHANGELOG.md](CHANGELOG.md)
+
+| 版本 | 功能 |
+|------|------|
+| v3.9.0 | --execute一站式发送、feishu_direct_send.py独立模块、批量发送、版本号统一、安全加固、文档瘦身 |

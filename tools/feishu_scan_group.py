@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_scan_group.py - 全自动扫描群消息历史，采集 Agent 的 app_id
+feishu_scan_group.py - 全自动扫描群消息历史，采集 Agent 的 app_id v3.9.0
 
 用法：
   python3 feishu_scan_group.py <群chat_id>

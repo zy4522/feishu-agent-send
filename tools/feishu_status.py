@@ -32,7 +32,7 @@ from feishu_agent_send import AgentConfig, list_known_agents
 
 def check_version(config):
     """检查版本号一致性"""
-    file_version = "3.8.0"  # 代码中的版本
+    file_version = "3.9.0"  # 代码中的版本
     config_version = config.get('version', 'unknown')
     
     if config_version != file_version:
@@ -290,7 +290,7 @@ def fix_issues(config, check_results):
     # 修复版本号
     version_check = check_results.get('版本检查', {})
     if isinstance(version_check, dict) and version_check.get('status') == 'warning':
-        config['version'] = '3.8.0'
+        config['version'] = '3.9.0'
         fixed.append('更新版本号为 3.8.0')
     
     # 保存修复后的配置

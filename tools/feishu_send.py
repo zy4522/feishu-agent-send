@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-feishu_send.py - 发送消息给飞书 Agent v3.9.0
+feishu_send.py - 发送消息给飞书 Agent v3.9.1
+
+v3.9.1 (2026-04-27):
+  - 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误
 
 用法：
   python3 feishu_send.py <目标Agent> <消息内容> [选项]
@@ -122,7 +125,8 @@ def send_to_agent(to_agent, message, from_agent, chat_type_override, actual_send
                 print(result.get('instruction', ''))
                 return result
             
-            receive_id_type = 'chat_id' if ct == 'group' else 'open_id'
+            # v3.9.1 修复：统一使用chat_id，避免open_id cross app错误
+            receive_id_type = 'chat_id'
             receive_id = chat_id
             msg_type = result.get('msg_type', 'text')
             # content 在 send_params 里，已经是 JSON 字符串

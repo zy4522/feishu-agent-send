@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_add.py - 添加 Agent 到配置 v3.9.0
+feishu_add.py - 添加 Agent 到配置 v3.9.1
 """
 
 import sys

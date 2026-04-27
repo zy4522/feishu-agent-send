@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.9.0
+feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.9.1
 
 一站式发送工具：解密本地 UAT → 自动续期 → 直接调用飞书 IM API 发送消息
 无需依赖 OpenClaw 会话，脚本独立完成全部发送流程。

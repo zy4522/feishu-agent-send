@@ -133,4 +133,5 @@ A: 运行 `python3 <skill路径>/tools/feishu_who.py`
 
 | 版本 | 功能 |
 |------|------|
+| v3.9.1 | 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误 |
 | v3.9.0 | --execute一站式发送、feishu_direct_send.py独立模块、批量发送、版本号统一、安全加固、文档瘦身 |

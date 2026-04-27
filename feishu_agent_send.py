@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.0"
+    __version__ = "3.9.1"
 
 
 class AgentConfig:

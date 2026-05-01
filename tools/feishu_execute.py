@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_execute.py - 生成飞书消息发送指令 v3.9.1
+feishu_execute.py - 生成飞书消息发送指令 v3.9.2
 
 ⚠️ 已废弃：v3.9.1 起，feishu_send.py 的 --execute 模式直接调用飞书 API，不再依赖此工具。
 本工具仅保留用于离线生成 feishu_im_user_message 调用指令。

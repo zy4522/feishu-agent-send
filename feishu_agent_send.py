@@ -1,7 +1,12 @@
 """
-feishu_agent_send - 飞书多 Agent 通信工具 v3.9.0
+feishu_agent_send - 飞书多 Agent 通信工具 v3.9.2
 
 核心原则：一个 skill，所有 agent 共用，自动识别身份
+
+v3.9.2 更新：
+- 修复 _refresh_token 兼容飞书 API v2 扁平格式
+- 修复 _decrypt_token/_save_token 硬编码 userOpenId 问题
+- 5个Agent需重新授权：main/cpaas/iio/ayy/gcz
 
 v3.9.0 更新：
 - --execute 模式真正一站式发送：解密本地 UAT → 自动续期 → 直接调飞书 IM API
@@ -27,7 +32,7 @@ from datetime import datetime, timezone
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.1"
+    __version__ = "3.9.2"
 
 
 class AgentConfig:

@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.9.1
+feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.9.2
 
 一站式发送工具：解密本地 UAT → 自动续期 → 直接调用飞书 IM API 发送消息
 无需依赖 OpenClaw 会话，脚本独立完成全部发送流程。
+
+v3.9.2 (2026-05-01):
+  - 修复 _refresh_token 兼容飞书 API v2 扁平格式（result['access_token']）
+  - 修复 _decrypt_token/_save_token 硬编码 userOpenId 问题
+
+v3.9.1 (2026-04-27):
+  - 修复私聊发送bug：统一使用chat_id
 
 用法：
   # 从 feishu_send.py 调用（推荐）
@@ -209,20 +216,27 @@ def _refresh_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> Optio
         with urllib.request.urlopen(req, timeout=10) as resp:
             result = json.loads(resp.read().decode('utf-8'))
         
-        # 飞书 v2 token 接口返回 code: 0 表示成功
-        if result.get('code') != 0:
-            print(f"⚠️ Token 续期失败: {result}", file=sys.stderr)
+        # 兼容两种返回格式：
+        # 格式1（标准）：{"code": 0, "data": {"access_token": "..."}}
+        # 格式2（扁平）：{"access_token": "...", "refresh_token": "..."}
+        if 'data' in result:
+            data = result['data']
+        else:
+            data = result
+        
+        if not data.get('access_token'):
+            print(f"⚠️ Token 续期失败，无 access_token: {result}", file=sys.stderr)
             return None
         
         # 更新 token 数据
         now = time.time() * 1000
         new_token = {
             **token_data,
-            'accessToken': result['data']['access_token'],
-            'refreshToken': result['data']['refresh_token'],
-            'expiresAt': now + result['data']['expires_in'] * 1000,
-            'refreshExpiresAt': now + result['data']['refresh_expires_in'] * 1000,
-            'scope': result['data'].get('scope', token_data.get('scope', '')),
+            'accessToken': data['access_token'],
+            'refreshToken': data['refresh_token'],
+            'expiresAt': now + data['expires_in'] * 1000,
+            'refreshExpiresAt': now + data.get('refresh_expires_in', 2592000) * 1000,
+            'scope': data.get('scope', token_data.get('scope', '')),
         }
         
         # 写回加密存储（使用 agent_name 确保写到正确的文件）

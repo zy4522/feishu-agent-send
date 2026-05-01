@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-feishu_send.py - 发送消息给飞书 Agent v3.9.1
+feishu_send.py - 发送消息给飞书 Agent v3.9.2
+
+v3.9.2 (2026-05-01):
+  - 修复 _refresh_token 兼容飞书 API v2 扁平格式
+  - 修复 _decrypt_token/_save_token 硬编码 userOpenId 问题
+  - 5个Agent需重新授权：main/cpaas/iio/ayy/gcz
 
 v3.9.1 (2026-04-27):
   - 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误

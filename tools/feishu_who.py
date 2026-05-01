@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_who.py - 查看所有 Agent 信息 v3.9.1
+feishu_who.py - 查看所有 Agent 信息 v3.9.2
 
 输出格式：统一 JSON
 """
@@ -16,7 +16,7 @@ from feishu_agent_send import AgentConfig
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.0"
+    __version__ = "3.9.2"
 
 
 def main():

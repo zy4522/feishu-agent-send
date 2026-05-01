@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_status.py - 飞书 Agent 配置诊断工具 v3.9.1
+feishu_status.py - 飞书 Agent 配置诊断工具 v3.9.2
 
 用法：
   python3 feishu_status.py [选项]
@@ -32,7 +32,7 @@ from feishu_agent_send import AgentConfig, list_known_agents
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.0"
+    __version__ = "3.9.2"
 
 
 def check_version(config):

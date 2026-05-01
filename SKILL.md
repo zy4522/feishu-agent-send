@@ -1,7 +1,12 @@
 # feishu_agent_send - 飞书多 Agent 通信工具
 
-**版本：** 3.9.1（版本号统一在 `_version.py`，所有工具从此引用）
+**版本：** 3.9.2（版本号统一在 `_version.py`，所有工具从此引用）
 **定位：** 一个 skill，所有 agent 共用，自动识别身份
+
+### v3.9.2 (2026-05-01)
+- **修复**：`_refresh_token` 兼容飞书 API v2 扁平格式
+- **修复**：`_decrypt_token`/`_save_token` 硬编码 userOpenId 问题
+- **影响**：5个Agent需重新授权（main/cpaas/iio/ayy/gcz），3个Agent正常（ying/kfj/zz）
 
 ### v3.9.1 (2026-04-27)
 - **修复**：feishu_send.py --execute模式私聊发送bug
@@ -88,7 +93,7 @@ python3 <skill路径>/tools/feishu_send.py <目标> "消息" --execute   # 直�
 
 ```json
 {
-  "version": "3.9.0",
+  "version": "3.9.2",
   "agents": {
     "ying": {
       "p2p": {"chat_id": "oc_xxx"},
@@ -133,5 +138,6 @@ A: 运行 `python3 <skill路径>/tools/feishu_who.py`
 
 | 版本 | 功能 |
 |------|------|
+| v3.9.2 | 修复 refresh_token 扁平格式 + 硬编码 userOpenId 问题 |
 | v3.9.1 | 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误 |
 | v3.9.0 | --execute一站式发送、feishu_direct_send.py独立模块、批量发送、版本号统一、安全加固、文档瘦身 |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_set_self.py - 设置当前 Agent 的 self 信息 + 检查 openclaw.json 绑定
+feishu_set_self.py - 设置当前 Agent 的 self 信息 + 检查 openclaw.json 绑定 v3.9.2
 
 用法：
   python3 feishu_set_self.py <Agent名称> <chat_id>

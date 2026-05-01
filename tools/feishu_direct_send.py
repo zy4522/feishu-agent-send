@@ -50,44 +50,62 @@ def _decrypt_token(agent_name: str) -> Optional[Dict[str, Any]]:
     """
     解密指定 Agent 的 UAT（User Access Token）
     
+    逻辑：
+    1. 从 openclaw.json 的 .channels.feishu.accounts.{agent_name} 获取 appId
+    2. 在 UAT_DIR 下扫描 {appId}_*.enc 文件
+    3. 解密匹配到的文件
+    
     存储格式：IV(12 bytes) + Tag(16 bytes) + Ciphertext
     加密方式：AES-256-GCM
     """
     try:
-        # 优先尝试 agent 自己的 token，fallback 到 default
-        # 动态扫描 UAT_DIR 下所有 .enc 文件，不再硬编码路径
-        enc_files = []
-        if os.path.exists(UAT_DIR):
-            enc_files = [
-                os.path.join(UAT_DIR, f)
-                for f in os.listdir(UAT_DIR)
-                if f.endswith('.enc')
-            ]
-        
-        # 也尝试从 self_by_agent 配置中查找
+        # Step 1: 从 openclaw.json 获取该 agent 的 appId
+        app_id = None
+        user_open_id = None
         try:
-            config_path = os.path.expanduser('~/.feishu_agent_send/config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                self_info = config.get('self_by_agent', {}).get(agent_name, {})
-                self_chat_id = self_info.get('chat_id', '')
-                # 从 agents 配置中找 appId
-                agents = config.get('agents', {})
-                agent_cfg = agents.get(agent_name, {})
-                if isinstance(agent_cfg, dict):
-                    for scene in ['group', 'p2p']:
-                        if scene in agent_cfg and isinstance(agent_cfg[scene], dict):
-                            app_id = agent_cfg[scene].get('app_id')
-                            if app_id:
-                                safe = app_id + '_ou_a4484a2d373b28bf1baf7f114352041e'
-                                safe = safe.replace('-', '_').replace('.', '_')
-                                enc_path = os.path.join(UAT_DIR, safe + '.enc')
-                                if os.path.exists(enc_path):
-                                    enc_files.insert(0, enc_path)
-                                break
+            if os.path.exists(OPENCLAW_CONFIG):
+                with open(OPENCLAW_CONFIG, 'r') as f:
+                    oc = json.load(f)
+                accounts = oc.get('channels', {}).get('feishu', {}).get('accounts', {})
+                acc = accounts.get(agent_name, {})
+                app_id = acc.get('appId')
+                user_open_id = acc.get('userOpenId')
         except Exception:
             pass
+        
+        if not app_id:
+            # fallback: 尝试从 config.json 的 agents 配置中查找
+            try:
+                config_path = os.path.expanduser('~/.feishu_agent_send/config.json')
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    agents = config.get('agents', {})
+                    agent_cfg = agents.get(agent_name, {})
+                    if isinstance(agent_cfg, dict):
+                        for scene in ['group', 'p2p']:
+                            if scene in agent_cfg and isinstance(agent_cfg[scene], dict):
+                                app_id = agent_cfg[scene].get('app_id')
+                                if app_id:
+                                    break
+            except Exception:
+                pass
+        
+        if not app_id:
+            print(f"⚠️ 找不到 agent '{agent_name}' 的 appId", file=sys.stderr)
+            return None
+        
+        # Step 2: 在 UAT_DIR 下扫描 {appId}_*.enc 文件
+        enc_files = []
+        if os.path.exists(UAT_DIR):
+            safe_app_id = app_id.replace('-', '_').replace('.', '_')
+            for f in os.listdir(UAT_DIR):
+                if f.endswith('.enc') and f.startswith(safe_app_id + '_'):
+                    enc_files.append(os.path.join(UAT_DIR, f))
+        
+        if not enc_files:
+            print(f"⚠️ 找不到 agent '{agent_name}' (appId={app_id}) 的 token 文件", file=sys.stderr)
+            return None
         
         master_key = _load_master_key()
         
@@ -134,15 +152,12 @@ def get_app_secret_from_openclaw(app_id: str) -> Optional[str]:
             return None
         with open(OPENCLAW_CONFIG, 'r') as f:
             oc = json.load(f)
-        accounts = oc.get('accounts', {})
+        # 修复：正确路径是 .channels.feishu.accounts
+        accounts = oc.get('channels', {}).get('feishu', {}).get('accounts', {})
         for acc_id, acc in accounts.items():
-            plugins = acc.get('plugins', [])
-            for plugin in plugins:
-                if plugin.get('id') == 'openclaw-lark':
-                    instances = plugin.get('instances', [])
-                    for inst in instances:
-                        if inst.get('appId') == app_id:
-                            return inst.get('appSecret')
+            if acc.get('appId') == app_id:
+                return acc.get('appSecret')
+        return None
     except Exception:
         pass
     return None
@@ -242,9 +257,30 @@ def _save_token(token_data: Dict[str, Any], agent_name: str = 'kfj') -> bool:
         # 存储格式: IV(12) + Tag(16) + Ciphertext
         enc_data = iv + tag + ciphertext
         
-        # 根据 agent_name 动态生成文件名，避免硬编码
-        app_id = token_data.get('appId', 'cli_a93af13bf5f8dbcb')
-        safe_name = app_id + '_ou_a4484a2d373b28bf1baf7f114352041e'
+        # 动态生成文件名：从 openclaw.json 获取 appId 和 userOpenId
+        app_id = token_data.get('appId', '')
+        user_open_id = ''
+        
+        # 尝试从 openclaw.json 获取 userOpenId
+        try:
+            if os.path.exists(OPENCLAW_CONFIG):
+                with open(OPENCLAW_CONFIG, 'r') as f:
+                    oc = json.load(f)
+                accounts = oc.get('channels', {}).get('feishu', {}).get('accounts', {})
+                acc = accounts.get(agent_name, {})
+                user_open_id = acc.get('userOpenId', '')
+        except Exception:
+            pass
+        
+        # fallback: 从 token_data 中提取
+        if not user_open_id:
+            user_open_id = token_data.get('userOpenId', '')
+        
+        if not app_id or not user_open_id:
+            print(f"⚠️ 无法确定 token 文件名: app_id={app_id}, user_open_id={user_open_id}", file=sys.stderr)
+            return False
+        
+        safe_name = app_id + '_' + user_open_id
         safe_name = safe_name.replace('-', '_').replace('.', '_')
         enc_path = os.path.join(UAT_DIR, safe_name + '.enc')
         

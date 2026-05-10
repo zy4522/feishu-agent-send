@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_add.py - 添加 Agent 到配置 v3.9.2
+feishu_add.py - 添加 Agent 到配置 v3.10.3
 """
 
 import sys
@@ -55,18 +55,23 @@ def check_duplicate_for_add(chat_id, chat_type, agent_name):
 
 def main():
     if len(sys.argv) < 3:
-        print("用法: python3 feishu_add.py <Agent名称> <chat_id> [--chat-type p2p|group]")
-        print("示例: python3 feishu_add.py kfj oc_xxx")
+        print("用法: python3 feishu_add.py <Agent名称> <chat_id> [--chat-type p2p|group] [--open-id ou_xxx]")
+        print("示例: python3 feishu_add.py kfj oc_xxx --chat-type group --open-id ou_xxx")
+        print("注意: 群聊配置建议提供 open_id，否则 @ 提醒可能无法正常工作")
         sys.exit(1)
     
     agent_name = sys.argv[1]
     chat_id = sys.argv[2]
     chat_type = 'p2p'
+    open_id = None
     
     i = 3
     while i < len(sys.argv):
         if sys.argv[i] == '--chat-type' and i + 1 < len(sys.argv):
             chat_type = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == '--open-id' and i + 1 < len(sys.argv):
+            open_id = sys.argv[i + 1]
             i += 2
         else:
             i += 1
@@ -105,8 +110,24 @@ def main():
         # 异常结构，直接覆盖
         config['agents'][agent_name] = {'chat_id': chat_id, 'chat_type': chat_type}
     
+    # 如果提供了 open_id，自动设置
+    if open_id:
+        agent = config['agents'][agent_name]
+        if isinstance(agent, dict) and ('p2p' in agent or 'group' in agent):
+            if chat_type in agent and isinstance(agent[chat_type], dict):
+                agent[chat_type]['open_id'] = open_id
+            else:
+                agent['open_id'] = open_id
+        print(f"✅ 已添加 {agent_name} ({chat_type}): {chat_id[:20]}...")
+        print(f"   open_id: {open_id}")
+        print(f"   ✅ 群聊 @ 提醒将正常工作")
+    else:
+        print(f"✅ 已添加 {agent_name} ({chat_type}): {chat_id[:20]}...")
+        if chat_type == 'group':
+            print(f"   ⚠️  未提供 open_id，群聊 @ 提醒可能无法正常工作")
+            print(f"   建议: python3 feishu_add.py {agent_name} {chat_id} --chat-type group --open-id <open_id>")
+    
     AgentConfig.save(config)
-    print(f"✅ 已添加 {agent_name} ({chat_type}): {chat_id[:20]}...")
     
     if warnings:
         print(f"\n⚠️  注意: 添加完成但存在警告（见上方），建议检查配置")

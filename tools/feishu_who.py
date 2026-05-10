@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_who.py - 查看所有 Agent 信息 v3.9.2
+feishu_who.py - 查看所有 Agent 信息 v3.10.3
 
 输出格式：统一 JSON
 """
@@ -16,7 +16,7 @@ from feishu_agent_send import AgentConfig
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.2"
+    __version__ = "3.10.3"  # fallback，与_version.py保持一致
 
 
 def main():
@@ -38,13 +38,25 @@ def main():
         
         if isinstance(info, dict):
             if 'p2p' in info:
-                agent_entry['scenes']['p2p'] = {
+                scene_info = {
                     'chat_id_prefix': info['p2p'].get('chat_id', 'N/A')[:20] + '...'
                 }
+                if 'open_id' in info['p2p']:
+                    scene_info['open_id_prefix'] = info['p2p']['open_id'][:20] + '...'
+                agent_entry['scenes']['p2p'] = scene_info
             if 'group' in info:
-                agent_entry['scenes']['group'] = {
+                scene_info = {
                     'chat_id_prefix': info['group'].get('chat_id', 'N/A')[:20] + '...'
                 }
+                # v3.10.3: 显示 open_id 配置状态
+                if 'open_id' in info['group']:
+                    scene_info['open_id_prefix'] = info['group']['open_id'][:20] + '...'
+                    scene_info['at_support'] = '✅'  # 支持 @ 提醒
+                elif 'app_id' in info['group']:
+                    scene_info['at_support'] = '⚠️'  # 只有 app_id，@ 可能不工作
+                else:
+                    scene_info['at_support'] = '❌'  # 不支持 @ 提醒
+                agent_entry['scenes']['group'] = scene_info
             if 'chat_id' in info:
                 # 旧格式兼容
                 agent_entry['scenes']['legacy'] = {

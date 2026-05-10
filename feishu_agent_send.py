@@ -1,7 +1,14 @@
+#!/usr/bin/env python3
 """
-feishu_agent_send - 飞书多 Agent 通信工具 v3.9.2
+feishu_agent_send - 飞书多 Agent 通信工具 v3.10.3
 
 核心原则：一个 skill，所有 agent 共用，自动识别身份
+
+v3.10.3 更新：
+- 群聊 post 消息去掉冗余 title
+- 新增 get_group_info_by_chat_id() 根据 chat_id 反查群信息
+- parse_agent_message() 优先从 at 标签提取目标 Agent
+- 支持 chat_id 参数自动识别群聊上下文
 
 v3.9.2 更新：
 - 修复 _refresh_token 兼容飞书 API v2 扁平格式
@@ -32,7 +39,7 @@ from datetime import datetime, timezone
 try:
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.2"
+    __version__ = "3.10.3"  # fallback，与_version.py保持一致
 
 
 class AgentConfig:
@@ -52,7 +59,7 @@ class AgentConfig:
             except Exception as e:
                 import warnings
                 warnings.warn(f'配置文件读取失败，使用默认配置: {e}')
-        return {"version": __version__, "agents": {}, "self_by_agent": {}}
+        return {"version": "3.10.3", "agents": {}, "self_by_agent": {}}
 
     @classmethod
     def save(cls, data: Dict[str, Any]):
@@ -62,20 +69,85 @@ class AgentConfig:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     @classmethod
-    def get_agent_app_id(cls, name: str) -> Optional[str]:
-        """获取 Agent 的飞书 app_id（用于群聊 @）"""
+    def get_agent_open_id(cls, name: str) -> Optional[str]:
+        """获取 Agent 的飞书 open_id（用于群聊 @ 标签）
+        
+        v3.10.3 修复：post 消息 @ 标签需要使用 open_id，不是 app_id
+        飞书 API 要求：tag: "at" 的 user_id 必须是 open_id/union_id/user_id
+        
+        查找顺序（严格模式）：
+        1. config.json 中的 open_id 字段（v3.10.3 新增）
+        2. openclaw.json 中的 userOpenId
+        3. 严格校验：不再 fallback 到 app_id（app_id 无法用于 @ 标签）
+        
+        注意：open_id 格式为 ou_ 开头，app_id 格式为 cli_ 开头
+        如果配置的是 app_id 而不是 open_id，会导致 @ 提醒失效
+        """
+        import sys
+        
         config = cls.load()
         agent = config.get('agents', {}).get(name)
-        if not agent:
-            return None
+        
+        # 严格查找 open_id
         if isinstance(agent, dict):
-            if 'app_id' in agent:
-                return agent['app_id']
+            # 检查顶层 open_id
+            if 'open_id' in agent:
+                open_id = agent['open_id']
+                if open_id and str(open_id).startswith('ou_'):
+                    return open_id
+            # 检查 scene 中的 open_id
+            for scene in ['p2p', 'group']:
+                if scene in agent and isinstance(agent[scene], dict):
+                    if 'open_id' in agent[scene]:
+                        open_id = agent[scene]['open_id']
+                        if open_id and str(open_id).startswith('ou_'):
+                            return open_id
+        
+        # 尝试从 openclaw.json 获取 userOpenId
+        try:
+            openclaw_config = os.path.expanduser('~/.openclaw/openclaw.json')
+            if os.path.exists(openclaw_config):
+                with open(openclaw_config, 'r') as f:
+                    oc = json.load(f)
+                accounts = oc.get('channels', {}).get('feishu', {}).get('accounts', {})
+                acc = accounts.get(name, {})
+                user_open_id = acc.get('userOpenId')
+                if user_open_id and str(user_open_id).startswith('ou_'):
+                    return user_open_id
+        except Exception:
+            pass
+        
+        # 严格模式：不再 fallback 到 app_id
+        # app_id (cli_ 开头) 不能用于 @ 标签，必须使用 open_id (ou_ 开头)
+        # 如果配置错误地使用了 app_id，给出明确提示
+        if isinstance(agent, dict):
             for scene in ['p2p', 'group']:
                 if scene in agent and isinstance(agent[scene], dict):
                     if 'app_id' in agent[scene]:
-                        return agent[scene]['app_id']
+                        wrong_id = agent[scene]['app_id']
+                        if wrong_id and str(wrong_id).startswith('cli_'):
+                            print(f"⚠️ Agent '{name}' 的 app_id 配置错误：{wrong_id}", file=sys.stderr)
+                            print(f"   @ 标签需要 open_id (ou_ 开头)，不是 app_id (cli_ 开头)", file=sys.stderr)
+                            print(f"   请使用：python3 feishu_set_open_id.py {name} <open_id> --chat-type {scene}", file=sys.stderr)
+        
         return None
+
+    @classmethod
+    def set_agent_open_id(cls, name: str, open_id: str, chat_type: str = 'group'):
+        """设置 Agent 的 open_id（用于群聊 @ 标签）"""
+        config = cls.load()
+        if 'agents' not in config:
+            config['agents'] = {}
+        if name not in config['agents']:
+            config['agents'][name] = {}
+        
+        agent = config['agents'][name]
+        if isinstance(agent, dict) and ('p2p' in agent or 'group' in agent):
+            if chat_type in agent and isinstance(agent[chat_type], dict):
+                agent[chat_type]['open_id'] = open_id
+            else:
+                agent['open_id'] = open_id
+        cls.save(config)
 
     @classmethod
     def set_agent_app_id(cls, name: str, app_id: str, chat_type: str = 'group'):
@@ -92,16 +164,11 @@ class AgentConfig:
                 agent[chat_type]['app_id'] = app_id
             else:
                 agent['app_id'] = app_id
-        else:
-            if isinstance(agent, dict):
-                agent['app_id'] = app_id
-            else:
-                config['agents'][name] = {'app_id': app_id}
-        
         cls.save(config)
 
     @classmethod
     def get_agent_info(cls, name: str, chat_type: str = None) -> Optional[Dict]:
+        """获取 Agent 的配置信息"""
         config = cls.load()
         agent = config.get('agents', {}).get(name)
         if not agent:
@@ -116,6 +183,47 @@ class AgentConfig:
             info = agent['p2p'].copy()
             info['chat_type'] = 'p2p'
             return info
+        return None
+
+    @classmethod
+    def get_group_info_by_chat_id(cls, chat_id: str) -> Optional[Dict]:
+        """
+        根据 chat_id 反查群配置信息（v3.10.3 新增）
+        
+        Returns:
+            dict: {
+                'agent_name': str,      # 该群关联的 Agent 名称
+                'chat_type': 'group',   # 固定为 group
+                'group_name': str,      # 群名称（如果有）
+                'app_id': str           # 群聊中该 Agent 的 app_id
+            }
+        """
+        config = cls.load()
+        agents = config.get('agents', {})
+        
+        for agent_name, agent_config in agents.items():
+            if isinstance(agent_config, dict) and 'group' in agent_config:
+                group_config = agent_config['group']
+                if isinstance(group_config, dict) and group_config.get('chat_id') == chat_id:
+                    return {
+                        'agent_name': agent_name,
+                        'chat_type': 'group',
+                        'group_name': group_config.get('name', ''),
+                        'app_id': group_config.get('app_id')
+                    }
+        return None
+
+    @classmethod
+    def get_agent_group_chat_id(cls, name: str) -> Optional[str]:
+        """获取 Agent 的群聊 chat_id（P1: 群聊路由检查用）"""
+        config = cls.load()
+        agent = config.get('agents', {}).get(name)
+        if not agent:
+            return None
+        if isinstance(agent, dict) and 'group' in agent:
+            group_config = agent['group']
+            if isinstance(group_config, dict):
+                return group_config.get('chat_id')
         return None
 
     @classmethod
@@ -189,6 +297,10 @@ def build_post_content(
     """
     构造飞书 post 消息内容（富文本，支持 @）
     
+    v3.10.3 改进：
+    - 去掉冗余 title，消息更简洁
+    - 保留 @ 标签在最前面
+    
     Args:
         message: 消息正文
         from_agent: 发送者名称（AI Agent 身份）
@@ -221,17 +333,10 @@ def build_post_content(
         # 只有 AI Agent 身份
         content_blocks.append({"tag": "text", "text": f"\n\n---\n📨 群聊代理发送 | {from_agent} → {to_agent}"})
     
-    # 构建 title
-    if actual_sender and actual_sender != from_agent:
-        # 双身份：显示实际发送者
-        title = f"【代理消息】@{to_agent} 来自 {actual_sender}"
-    else:
-        # 单身份
-        title = f"【代理消息】@{to_agent} 来自 {from_agent}"
-    
+    # v3.10.3: 不再生成冗余 title，让消息更简洁
+    # title 在飞书 post 消息中显示为卡片标题，对于群聊代理消息是视觉噪音
     return {
         "zh_cn": {
-            "title": title,
             "content": [content_blocks]
         }
     }
@@ -253,7 +358,7 @@ def build_text_content(
     metadata = {
         'from_agent': from_agent,
         'to_agent': to_agent,
-        'from_chat_id': my_chat_id,
+        'from_chat_id': my_chat_id,  # 使用发送者自己的chat_id
         'chat_type': 'p2p',
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'version': __version__
@@ -331,13 +436,12 @@ def feishu_agent_send(
     type_label = '私信' if ct == 'p2p' else '群'
 
     # 获取目标 Agent 的 app_id（群聊 @ 用）
-    to_app_id = AgentConfig.get_agent_app_id(to) if ct == 'group' else None
+    to_open_id = AgentConfig.get_agent_open_id(to) if ct == 'group' else None
     
     # 根据聊天类型构造不同消息格式
-    if ct == 'group' and to_app_id:
+    if ct == 'group' and to_open_id:
         # 群聊：使用 post 富文本格式，包含 @
-        content_obj = build_post_content(message, from_agent, to, to_app_id, actual_sender)
-        content = json.dumps(content_obj, ensure_ascii=False)
+        content = build_post_content(message, from_agent, to, to_open_id, actual_sender)
         msg_type = 'post'
     else:
         # 私聊：使用 text 纯文本格式
@@ -351,7 +455,7 @@ def feishu_agent_send(
         'msg_type': msg_type,
         'content': content,
         'formatted_message': content,
-        'to_app_id': to_app_id,
+        'to_open_id': to_open_id,
         'actual_sender': actual_sender
     }
 
@@ -374,7 +478,7 @@ def feishu_agent_send_and_deliver(
     ct = result['chat_type']
     msg_type = result.get('msg_type', 'text')
     content = result['content']
-    to_app_id = result.get('to_app_id')
+    to_open_id = result.get('to_open_id')
     actual_sender = result.get('actual_sender')
     
     # 构造 feishu_im_user_message 调用指令
@@ -389,9 +493,9 @@ def feishu_agent_send_and_deliver(
         f')'
     )
     
-    if to_app_id:
+    if to_open_id:
         instruction += (
-            f'\n\n注：消息包含 @{to} 的 @ 提醒（app_id: {to_app_id}）'
+            f'\n\n注：消息包含 @{to} 的 @ 提醒（open_id: {to_open_id}）'
         )
     
     if actual_sender:
@@ -417,14 +521,18 @@ def feishu_agent_send_and_deliver(
         'to': to,
         'from_agent': from_agent,
         'actual_sender': actual_sender,
-        'to_app_id': to_app_id,
+        'to_open_id': to_open_id,
     }
     return deliver
 
 
-def parse_agent_message(raw_content):
+def parse_agent_message(raw_content, chat_id: str = None):
     """
     自动解析 feishu_agent_send 消息
+    
+    v3.10.3 改进：
+    - 优先从 post 的 at 标签提取目标 Agent，不依赖 title
+    - 支持根据 chat_id 自动识别群聊上下文
     
     支持两种格式：
     1. post 消息（群聊）：从 content.content 数组提取
@@ -432,6 +540,7 @@ def parse_agent_message(raw_content):
     
     Args:
         raw_content: 飞书消息的原始 content（字符串或 dict）
+        chat_id: 消息来源的 chat_id（可选，用于自动识别群聊上下文）
     
     Returns:
         dict: {
@@ -440,6 +549,7 @@ def parse_agent_message(raw_content):
             'to_agent': str,           # 接收者
             'message': str,            # 纯文本内容
             'chat_type': str,          # 'group' 或 'p2p'
+            'group_name': str,         # 群名称（v3.10.3 新增）
             'raw_content': any         # 原始内容（调试用）
         }
     """
@@ -449,40 +559,70 @@ def parse_agent_message(raw_content):
         'to_agent': None,
         'message': None,
         'chat_type': None,
+        'group_name': None,
         'raw_content': raw_content
     }
     
+    # v3.10.3: 如果提供了 chat_id，尝试反查群信息
+    if chat_id:
+        group_info = AgentConfig.get_group_info_by_chat_id(chat_id)
+        if group_info:
+            result['chat_type'] = 'group'
+            result['group_name'] = group_info.get('group_name', '')
+    
     # 处理 post 消息（群聊）
     if isinstance(raw_content, dict) and 'zh_cn' in raw_content:
-        result['chat_type'] = 'group'
+        result['chat_type'] = result['chat_type'] or 'group'
         
         zh_cn = raw_content['zh_cn']
         title = zh_cn.get('title', '')
         content_blocks = zh_cn.get('content', [[]])[0] if zh_cn.get('content') else []
         
-        # 检查是否是代理消息（通过 title 判断）
+        # v3.10.3: 优先从 at 标签提取目标 Agent
+        at_app_id = None
+        at_user_name = None
+        
+        for block in content_blocks:
+            if block.get('tag') == 'at':
+                at_app_id = block.get('user_id')
+                at_user_name = block.get('user_name')
+                break
+        
+        # 检查是否是代理消息（通过 title 或 at 标签判断）
+        is_agent = False
         if '【代理消息】' in title or '来自 ' in title:
+            is_agent = True
+        elif at_app_id:
+            # 有 at 标签且内容包含代理标识，也认为是代理消息
+            for block in content_blocks:
+                if block.get('tag') == 'text' and '📨' in block.get('text', ''):
+                    is_agent = True
+                    break
+        
+        if is_agent:
             result['is_agent_message'] = True
             
-            # 从 title 提取发送者和接收者
-            # 格式: 【代理消息】@目标 来自 发送者
+            # v3.10.3: 优先从 at 标签获取目标 Agent
+            if at_user_name:
+                result['to_agent'] = at_user_name
+            elif '@' in title:
+                # 从 title 提取 @ 后面的目标名称
+                at_part = title.split('@')[1].split(' ')[0] if '@' in title else None
+                if at_part:
+                    result['to_agent'] = at_part.strip()
+            
+            # 从 title 提取发送者
             if '来自 ' in title:
                 parts = title.split('来自 ')
                 if len(parts) >= 2:
                     result['from_agent'] = parts[-1].strip()
-            
-            if '@' in title:
-                # 提取 @ 后面的目标名称
-                at_part = title.split('@')[1].split(' ')[0] if '@' in title else None
-                if at_part:
-                    result['to_agent'] = at_part.strip()
         
         # 提取消息正文
         text_parts = []
         for block in content_blocks:
             if block.get('tag') == 'text':
                 text = block.get('text', '')
-                # 跳过代理标识行
+                # 跳过代理标识行和分隔线
                 if not text.startswith('---') and not text.startswith('📨') and text.strip():
                     text_parts.append(text)
         
@@ -490,26 +630,25 @@ def parse_agent_message(raw_content):
     
     # 处理 text 消息（私聊）
     elif isinstance(raw_content, dict) and 'text' in raw_content:
-        result['chat_type'] = 'p2p'
+        result['chat_type'] = result['chat_type'] or 'p2p'
         text = raw_content['text']
         
         # 检查是否是代理消息格式
         if '【代理】' in text and '元数据：' in text:
             result['is_agent_message'] = True
             
-            # 提取元数据
+            # v3.10.2: 用正则提取元数据 JSON，比字符串位置匹配更可靠
             try:
-                metadata_start = text.find('元数据：') + 4
-                metadata_end = text.find('\n---', metadata_start)
-                if metadata_end == -1:
-                    metadata_end = len(text)
-                
-                metadata_json = text[metadata_start:metadata_end].strip()
-                metadata = json.loads(metadata_json)
-                result['from_agent'] = metadata.get('from_agent')
-                result['to_agent'] = metadata.get('to_agent')
-            except:
-                pass
+                import re
+                # 匹配 '元数据：' 后第一个 JSON 对象
+                match = re.search(r'元数据：\s*(\{[^{}]*\})', text)
+                if match:
+                    metadata = json.loads(match.group(1))
+                    result['from_agent'] = metadata.get('from_agent')
+                    result['to_agent'] = metadata.get('to_agent')
+            except Exception as e:
+                import sys
+                print(f'⚠️ 解析元数据失败: {e}', file=sys.stderr)
             
             # 提取消息正文
             lines = text.split('\n')

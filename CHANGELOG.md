@@ -1,5 +1,38 @@
 # CHANGELOG - feishu-agent-send
 
+## v3.10.3 (2026-05-10)
+- 群聊 post 消息去掉冗余 title，消息更简洁
+- 新增 get_group_info_by_chat_id() 根据 chat_id 反查群信息
+- parse_agent_message() 优先从 at 标签提取目标 Agent，不依赖 title
+- 支持 chat_id 参数自动识别群聊上下文
+
+## v3.10.2 (2026-05-10)
+- 统一 --execute 与 --deliver 消息格式（gcz审查P0）
+- --execute 现在使用 feishu_agent_send_and_deliver 生成的格式
+- 群聊统一使用 post 富文本（含@标签）
+- from_chat_id 统一使用发送者自己的 chat_id
+- 合并 parse_agent_message 双实现（删除独立文件，统一使用 feishu_agent_send.py 中的正则版本）
+- 硬编码路径改为相对路径（P1）
+- 删除废弃的 feishu_execute.py（P2）
+- OPENCLAW_CONFIG 使用 os.path.expanduser（P1）
+
+## v3.10.1 (2026-05-10)
+- 修复 from_chat_id 硬编码问题（gcz审查P0）
+- 版本号统一从 _version.py 引用
+
+## v3.10.0 (2026-05-04)
+- 集成幂等性重试机制，彻底解决重复发送问题
+- 支持指数退避重试，网络波动时自动恢复
+- 重复消息自动拦截，避免打扰用户
+
+## v3.9.2 (2026-05-01)
+- 修复 _refresh_token 兼容飞书 API v2 扁平格式
+- 修复 _decrypt_token/_save_token 硬编码 userOpenId 问题
+- 5个Agent需重新授权：main/cpaas/iio/ayy/gcz
+
+## v3.9.1 (2026-04-27)
+- 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误
+
 ## v3.9.0 (2026-04-25)
 - --execute 模式升级为真正的一站式发送：直接调用飞书 API
 - 新增 feishu_direct_send.py 独立发送模块

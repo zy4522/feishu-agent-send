@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu-agent-send 使用反馈收集工具 v3.9.2
+feishu-agent-send 使用反馈收集工具 v3.10.3
 版本：1.0
 功能：收集各Agent使用feishu-agent-send的反馈信息
 """

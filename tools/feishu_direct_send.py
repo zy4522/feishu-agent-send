@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.9.2
+feishu_direct_send.py - 直接通过飞书 API 发送消息 v3.10.3
 
 一站式发送工具：解密本地 UAT → 自动续期 → 直接调用飞书 IM API 发送消息
 无需依赖 OpenClaw 会话，脚本独立完成全部发送流程。
+
+v3.10.2 (2026-05-10):
+  - 硬编码路径改为相对路径
+  - OPENCLAW_CONFIG 使用 os.path.expanduser
 
 v3.9.2 (2026-05-01):
   - 修复 _refresh_token 兼容飞书 API v2 扁平格式（result['access_token']）
@@ -149,7 +153,7 @@ def _decrypt_token(agent_name: str) -> Optional[Dict[str, Any]]:
 # Token 续期模块
 # ============================================================================
 
-OPENCLAW_CONFIG = '/root/.openclaw/openclaw.json'
+OPENCLAW_CONFIG = os.path.expanduser('~/.openclaw/openclaw.json')
 
 
 def get_app_secret_from_openclaw(app_id: str) -> Optional[str]:
@@ -350,11 +354,14 @@ def send_message(
     """
     url = f'{FEISHU_API_BASE}/im/v1/messages?receive_id_type={receive_id_type}'
     
-    body = json.dumps({
+    # v3.10.2: content已经是JSON字符串，直接使用
+    # 构造body时手动拼接，避免双重JSON编码
+    body_dict = {
         'receive_id': receive_id,
         'msg_type': msg_type,
-        'content': content,
-    }).encode('utf-8')
+        'content': content,  # 已经是JSON字符串
+    }
+    body = json.dumps(body_dict, ensure_ascii=False).encode('utf-8')
     
     req = urllib.request.Request(
         url,
@@ -403,27 +410,11 @@ def send_message(
 # CLI 入口
 # ============================================================================
 
-def build_post_content(title: str, text: str, at_user_id: Optional[str] = None, at_name: Optional[str] = None) -> str:
-    """构建飞书 post 消息的 content JSON"""
-    content_elements = []
-    
-    if at_user_id:
-        content_elements.append([
-            {"tag": "at", "user_id": at_user_id, "user_name": at_name or ''},
-            {"tag": "text", "text": f"\n\n{text}"}
-        ])
-    else:
-        content_elements.append([
-            {"tag": "text", "text": text}
-        ])
-    
-    post_content = {
-        "zh_cn": {
-            "title": title,
-            "content": content_elements
-        }
-    }
-    return json.dumps(post_content, ensure_ascii=False)
+# build_post_content 已移至 feishu_agent_send.py（统一实现）
+# 保留此注释说明历史位置，避免重复定义
+
+# def build_post_content(title: str, text: str, at_user_id: Optional[str] = None, at_name: Optional[str] = None) -> str:
+#     ... 已迁移到 feishu_agent_send.py ...
 
 
 def main():

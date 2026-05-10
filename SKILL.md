@@ -1,17 +1,37 @@
 # feishu_agent_send - 飞书多 Agent 通信工具
 
-**版本：** 3.9.2（版本号统一在 `_version.py`，所有工具从此引用）
-**定位：** 一个 skill，所有 agent 共用，自动识别身份
+**版本:** 3.10.3(版本号统一在 `_version.py`,所有工具从此引用)
+**定位:** 一个 skill,所有 agent 共用,自动识别身份
+
+### v3.10.3 (2026-05-10)
+- **修复**:群聊 @ 标签使用 open_id 而非 app_id
+- **修复**:get_agent_app_id() → get_agent_open_id() 函数名修正
+- **改进**:群聊 post 消息去掉冗余 title
+- **新增**:get_group_info_by_chat_id() 根据 chat_id 反查群信息
+- **改进**:parse_agent_message() 优先从 at 标签提取目标 Agent
+- **代码质量**:删除重复代码、未使用导入、僵尸代码
+
+### v3.10.2 (2026-05-10)
+- **修复**:统一 --execute 与 --deliver 消息格式
+- **修复**:from_chat_id 硬编码问题
+
+### v3.10.1 (2026-05-10)
+- **修复**:from_chat_id 硬编码问题（gcz审查P0）
+- **修复**:版本号统一从 _version.py 引用
+
+### v3.10.0 (2026-05-04)
+- **新增**:强制自动生成标准代理格式
+- **新增**:幂等性重试机制，自动拦截重复消息
 
 ### v3.9.2 (2026-05-01)
-- **修复**：`_refresh_token` 兼容飞书 API v2 扁平格式
-- **修复**：`_decrypt_token`/`_save_token` 硬编码 userOpenId 问题
-- **影响**：5个Agent需重新授权（main/cpaas/iio/ayy/gcz），3个Agent正常（ying/kfj/zz）
+- **修复**:`_refresh_token` 兼容飞书 API v2 扁平格式
+- **修复**:`_decrypt_token`/`_save_token` 硬编码 userOpenId 问题
+- **影响**:5个Agent需重新授权(main/cpaas/iio/ayy/gcz),3个Agent正常(ying/kfj/zz)
 
 ### v3.9.1 (2026-04-27)
-- **修复**：feishu_send.py --execute模式私聊发送bug
-- **根因**：私聊时错误使用open_id，但receive_id实际是chat_id格式
-- **修复**：统一使用chat_id，避免"open_id cross app"错误
+- **修复**:feishu_send.py --execute模式私聊发送bug
+- **根因**:私聊时错误使用open_id,但receive_id实际是chat_id格式
+- **修复**:统一使用chat_id,避免"open_id cross app"错误
 
 ⚠️ **安全声明:** 本 skill 使用 `feishu_im_user_message` 以**用户身份**发送飞书消息。确保只在你信任的 Agent 之间使用。
 
@@ -49,16 +69,15 @@ python3 <skill路径>/tools/feishu_send.py <目标> "消息" --execute   # 直�
 
 | 工具 | 用途 |
 |------|------|
-| `feishu_send.py --deliver` | 一站式发送,输出 `feishu_im_user_message` 调用指令 ⭐⭐⭐ |
+| `feishu_send.py --deliver` | 一站式发送，输出 `feishu_im_user_message` 调用指令 ⭐⭐⭐ |
 | `feishu_send.py --execute` | 直接调用飞书 API 发送 ⭐⭐⭐ |
-| `feishu_send.py`(无参数) | 预览 JSON(调试用) |
-| `feishu_status.py` | 配置诊断(检查/修复) |
-| `feishu_set_self.py` | 设置自己的发送者信息(首次必做) |
+| `feishu_send.py`(无参数) | 预览 JSON（调试用） |
+| `feishu_status.py` | 配置诊断（检查/修复） |
+| `feishu_set_self.py` | 设置自己的发送者信息（首次必做） |
 | `feishu_add.py` | 添加其他 Agent |
-| `feishu_scan_group.py` | 扫描群成员采集 app_id(群初始化) |
+| `feishu_scan_group.py` | 扫描群成员采集 app_id（群初始化） |
 | `feishu_who.py` | 查看所有 Agent 配置信息 |
-| `feishu_direct_send.py` | 底层 API 发送(供其他脚本调用) |
-| `parse_agent_message.py` | 解析收到的代理消息 |
+| `feishu_direct_send.py` | 底层 API 发送（供其他脚本调用） |
 
 ## 📖 消息标准格式
 
@@ -93,11 +112,11 @@ python3 <skill路径>/tools/feishu_send.py <目标> "消息" --execute   # 直�
 
 ```json
 {
-  "version": "3.9.2",
+  "version": "3.10.3",
   "agents": {
     "ying": {
       "p2p": {"chat_id": "oc_xxx"},
-      "group": {"chat_id": "oc_yyy", "app_id": "cli_xxx"}
+      "group": {"chat_id": "oc_yyy", "open_id": "ou_xxx"}
     }
   },
   "self_by_agent": {
@@ -110,7 +129,7 @@ python3 <skill路径>/tools/feishu_send.py <目标> "消息" --execute   # 直�
 ```
 
 **说明:**
-- `app_id` 通过 `feishu_scan_group.py` 自动采集,无需手动配置
+- `open_id` 通过 `feishu_set_open_id.py` 设置,用于群聊 @ 标签
 - `name_mappings` 用于群聊 @ 功能,将飞书机器人名称映射到 Agent 名称
 
 ## 🐛 常见问题(关键词索引)
@@ -138,6 +157,10 @@ A: 运行 `python3 <skill路径>/tools/feishu_who.py`
 
 | 版本 | 功能 |
 |------|------|
-| v3.9.2 | 修复 refresh_token 扁平格式 + 硬编码 userOpenId 问题 |
-| v3.9.1 | 修复私聊发送bug：统一使用chat_id，避免open_id cross app错误 |
-| v3.9.0 | --execute一站式发送、feishu_direct_send.py独立模块、批量发送、版本号统一、安全加固、文档瘦身 |
+| v3.10.3 | 群聊@标签使用open_id + 代码质量改进 |
+| v3.10.2 | 统一--execute与--deliver格式 + 硬编码修复 |
+| v3.10.1 | from_chat_id硬编码修复 |
+| v3.10.0 | 强制标准代理格式 + 幂等性重试机制 |
+| v3.9.2 | 修复refresh_token扁平格式 + 硬编码userOpenId问题 |
+| v3.9.1 | 修复私聊发送bug:统一使用chat_id |
+| v3.9.0 | --execute一站式发送、独立模块、批量发送、版本号统一 |

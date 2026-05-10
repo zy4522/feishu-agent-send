@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-feishu_status.py - 飞书 Agent 配置诊断工具 v3.9.2
+feishu_status.py - 飞书 Agent 配置诊断工具 v3.10.3
 
 用法：
   python3 feishu_status.py [选项]
@@ -27,12 +27,13 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from feishu_agent_send import AgentConfig, list_known_agents
+from feishu_agent_send import AgentConfig
 
 try:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from _version import __version__
 except ImportError:
-    __version__ = "3.9.2"
+    __version__ = "3.10.3"  # fallback，与_version.py保持一致
 
 
 def check_version(config):
@@ -83,13 +84,6 @@ def check_self_config(config):
                 'agent': agent_name,
                 'message': f'{agent_name} 的 chat_id 长度或字符异常: {chat_id[:20]}...',
                 'fix': 'chat_id 应为 oc_ 开头 + 至少 21 位字母数字字符'
-            })
-        elif len(chat_id) < 24 or not all(c.isalnum() or c == '_' for c in chat_id[3:]):
-            results.append({
-                'status': 'warning',
-                'agent': agent_name,
-                'message': f'{agent_name} 的 chat_id 长度或字符异常: {chat_id[:20]}...',
-                'fix': '确认 chat_id 格式正确 (oc_ + 至少16位字母数字)'
             })
         else:
             results.append({
